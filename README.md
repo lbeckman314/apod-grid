@@ -59,6 +59,12 @@ If it stops, rerun the loop starting from the year it stopped at.
 
 The workflow deploys the site with GitHub Actions, so the search index is built fresh and never committed. In the repository's Settings → Pages, set **Source** to **GitHub Actions**.
 
+`npm run build` builds the search index and assembles the deployed files in `_site/`. Both the workflow and Netlify use it.
+
+### Previews
+
+Netlify builds a preview of each pull request, using the settings in `netlify.toml`, and posts its link on the pull request. It skips `main`, since GitHub Pages serves the live site. To set it up, import the repository in Netlify (Add new site → Import an existing project).
+
 ## Credits
 
 Pictures and text are from NASA's Astronomy Picture of the Day. Some images are copyrighted by their photographers. This site links to NASA's copies and doesn't host any images itself.

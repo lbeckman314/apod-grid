@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "npm run build-search && rm -rf _site && mkdir _site && cp -r index.html apod.json pagefind _site/",
     "build-search": "node build-search.mjs",
     "update": "node fetch-apod.mjs --update"
   },

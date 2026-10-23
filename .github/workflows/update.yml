@@ -46,15 +46,11 @@ jobs:
           git commit -m "Update apod.json to $(node -p 'require("./apod.json")[0].date')"
           git push
 
-      - name: Build search index
+      # Builds the search index and assembles _site/, the same way Netlify previews do.
+      - name: Build site
         run: |
           npm ci
-          npm run build-search
-
-      - name: Assemble site
-        run: |
-          mkdir _site
-          cp -r index.html apod.json pagefind _site/
+          npm run build
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
