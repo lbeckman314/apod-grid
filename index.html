@@ -50,13 +50,14 @@ header.bar {
 .brand h1 { margin: 0; font: 800 20px/1 var(--font-display); letter-spacing: -0.01em; }
 .brand h1 span { color: var(--glow); }
 .brand small { font: 400 12px var(--font-mono); color: var(--dust); }
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .controls label { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dust); }
 .controls input {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 8px; font-family: var(--font-mono); font-size: 13px;
 }
 .controls input[type="month"] { width: 10.5em; }
+.controls input[type="search"] { width: 16em; max-width: 100%; font-family: var(--font-body); font-size: 14px; }
 .btn {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 12px; cursor: pointer; text-decoration: none; font-size: 14px; white-space: nowrap;
@@ -98,6 +99,9 @@ section.month h2 span { font: 400 12px var(--font-mono); color: var(--dust); }
 .cap .d { font: 500 11px var(--font-mono); color: var(--glow); letter-spacing: 0.04em; }
 .cap .t { font: 600 13px/1.25 var(--font-body); color: #f4f6fb;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cap .c { font: 400 11px/1.3 var(--font-body); color: #c3cad8;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.more { margin-top: 16px; }
 .badge {
   position: absolute; top: 6px; right: 6px; padding: 2px 6px; border-radius: 3px;
   font: 500 10px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em;
@@ -131,6 +135,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     <small id="count">Astronomy Picture of the Day</small>
   </div>
   <div class="controls">
+    <input type="search" id="q" placeholder="Search titles, credits, text" aria-label="Search" autocomplete="off" spellcheck="false">
     <label for="jump">Jump to</label>
     <input type="month" id="jump" min="1995-06">
     <a class="btn" id="random" href="https://science.nasa.gov/apod/random-apod/" target="_blank" rel="noopener">Random day</a>
@@ -158,6 +163,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   let all = [];          // every entry, newest first
   let months = [];       // [{ key: 'YYYY-MM', items }], newest first
   let next = 0;          // index into months of the next one to render
+  let searching = false; // while showing search results, scrolling doesn't add months
 
   function setStatus(kind, text) {
     if (!kind) { statusEl.hidden = true; statusEl.replaceChildren(); return; }
@@ -179,7 +185,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     const srcs = [it.thumb, it.image].filter(Boolean);
     if (srcs.length) {
       const img = document.createElement('img');
-      img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.title;
+      img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.alt || it.title;
       img.referrerPolicy = 'no-referrer';
       let i = 0;
       img.onload = () => img.classList.add('loaded');
@@ -197,10 +203,17 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     const cap = document.createElement('span'); cap.className = 'cap';
     const d = document.createElement('span'); d.className = 'd'; d.textContent = shortDate(it.date);
     const t = document.createElement('span'); t.className = 't'; t.textContent = it.title;
-    cap.append(d, t); a.append(cap);
+    cap.append(d, t);
+    if (it.credit) {
+      const c = document.createElement('span'); c.className = 'c'; c.textContent = it.credit;
+      cap.append(c);
+      a.title += `\nCredit: ${it.credit}`;
+    }
+    a.append(cap);
 
-    if (it.media_type === 'video') {
-      const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'Video';
+    const label = { video: 'Video', audio: 'Audio', interactive: 'Interactive' }[it.media_type];
+    if (label) {
+      const b = document.createElement('span'); b.className = 'badge'; b.textContent = label;
       a.append(b);
     }
     return a;
@@ -224,6 +237,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
 
   // Render months until the page is filled a screen or so past the bottom.
   function fill() {
+    if (searching) return;
     let budget = 6; // months per pass, so a jump never blocks for long
     while (next < months.length && budget-- > 0 && sentinelVisible()) renderMonth(months[next++]);
     if (next >= months.length && months.length) setStatus('info', `You reached the earliest picture in apod.json: ${shortDate(all[all.length - 1].date)}.`);
@@ -235,6 +249,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   }, { rootMargin: '1200px 0px' }).observe(sentinel);
 
   function showFrom(index) {
+    searching = false;
     next = index;
     main.replaceChildren();
     setStatus(null);
@@ -246,12 +261,83 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   const jump = $('jump');
   jump.addEventListener('change', () => {
     if (!jump.value || !months.length) return;
+    q.value = '';
     const i = months.findIndex((mo) => mo.key <= jump.value);
     showFrom(i < 0 ? months.length - 1 : i);
   });
 
   $('random').addEventListener('click', function () {
     if (all.length) this.href = all[Math.floor(Math.random() * all.length)].link;
+  });
+
+  // --- search --------------------------------------------------------------
+  // Uses the Pagefind index (pagefind/, built by build-search.mjs) when it's there, which
+  // covers titles, credits and explanations. Without it, matches titles and credits only.
+  const SEARCH_PAGE = 48;
+  const q = $('q');
+  let pagefind = null;
+  const pagefindReady = import('./pagefind/pagefind.js')
+    .then(async (pf) => { await pf.options({ excerptLength: 0 }); await pf.init(); pagefind = pf; })
+    .catch(() => {});
+  let searchRun = 0;
+
+  const fromPagefind = ({ meta: m }) => ({
+    date: m.date, title: m.title, link: m.link, thumb: m.image, image: m.image_full,
+    credit: m.credit, media_type: m.media_type, alt: m.alt,
+  });
+
+  async function runSearch(query) {
+    const run = ++searchRun;
+    if (!query) { if (searching) showFrom(0); return; }
+    searching = true;
+    await pagefindReady;
+
+    let results; // functions that each load one entry, so only a page's worth is fetched at a time
+    if (pagefind) {
+      const r = await pagefind.search(query);
+      results = r.results.map((x) => async () => fromPagefind(await x.data()));
+    } else {
+      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+      results = all
+        .filter((e) => { const hay = `${e.title} ${e.credit || ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
+        .map((e) => async () => e);
+    }
+    if (run !== searchRun) return;
+
+    const sec = document.createElement('section'); sec.className = 'month';
+    const h = document.createElement('h2');
+    h.textContent = `“${query}” `;
+    const n = document.createElement('span');
+    n.textContent = `${results.length.toLocaleString()} ${results.length === 1 ? 'day' : 'days'}${pagefind ? '' : ' (titles and credits)'}`;
+    h.append(n);
+    const grid = document.createElement('div'); grid.className = 'grid';
+    const more = document.createElement('button'); more.className = 'btn more'; more.textContent = 'Show more';
+    sec.append(h, grid, more);
+    main.replaceChildren(sec);
+    window.scrollTo({ top: 0 });
+    setStatus(results.length ? null : 'info', `No days match “${query}”.`);
+
+    let shown = 0;
+    async function showMore() {
+      const batch = results.slice(shown, shown + SEARCH_PAGE);
+      shown += batch.length;
+      more.hidden = true;
+      const items = await Promise.all(batch.map((load) => load()));
+      if (run !== searchRun) return;
+      grid.append(...items.map(tile));
+      more.hidden = shown >= results.length;
+    }
+    more.onclick = showMore;
+    await showMore();
+  }
+
+  let searchTimer;
+  q.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => runSearch(q.value.trim()), 250);
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { q.value = ''; runSearch(''); }
   });
 
   // --- start ---------------------------------------------------------------
