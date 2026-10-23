@@ -7,7 +7,7 @@ A photo-grid view of NASA's [Astronomy Picture of the Day](https://science.nasa.
 - `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `pagefind/`.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
 
-The data currently covers 2026 only, while the fields settle. See [Building the archive](#building-the-archive) to add earlier years.
+The data covers the whole archive: 11,445 days from June 16, 1995 on. NASA's site has 11,446 APOD posts; see [Known gaps](#known-gaps).
 
 ## Run it locally
 
@@ -48,6 +48,15 @@ Browsers won't load `apod.json` from a `file://` page, so serve the folder over 
 | `id`, `slug`, `date_gmt`, `modified`, `modified_gmt` | NASA's post details. |
 | `author`, `coauthors`, `categories`, `featured_media` | NASA's internal IDs for the post's author, editors, category and image. |
 
+### Known gaps
+
+These come from NASA's migration of APOD to science.nasa.gov, not from the scripts:
+
+- **Days with no post:** 1995-06-17 to 06-19 (APOD didn't post), 2000-06-30, 2004-12-29, 2007-07-13, 2018-04-01 and 2020-06-10.
+- **2007-07-16 has two posts**, "Manhattanhenge: A New York Sunset" and "The Lagoon Nebula in Gas, Dust, and Stars". One is probably 2007-07-13, but NASA's pages don't say which. `apod.json` keeps Manhattanhenge.
+- **About 16 posts are empty**, with only page navigation, so those days have a title and link but no image, credit or explanation.
+- **About 130 days have no image**, mostly Vimeo videos (which offer no free thumbnail) and those empty posts.
+
 ## Updating the data
 
 ```sh
@@ -58,12 +67,12 @@ node fetch-apod.mjs --start 2024-01-01 --end 2024-01-31
 
 Existing entries are kept and merged, and refetched days are refreshed.
 
-## Building the archive
+## Rebuilding the archive
 
-To add the whole archive (1995 to today) without putting much load on NASA's site, fetch one year at a time with a pause between years. Each year takes about 4 requests.
+To rebuild the whole archive (1995 to today) without putting much load on NASA's site, fetch one year at a time with a pause between years. Each year takes about 4 requests.
 
 ```sh
-for y in $(seq 1995 2025); do
+for y in $(seq 1995 2026); do
   node fetch-apod.mjs --start $y-01-01 --end $y-12-31 || { echo "Stopped at $y"; break; }
   sleep 30
 done

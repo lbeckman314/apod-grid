@@ -21,6 +21,7 @@ import { readFile, writeFile, rename, readdir, mkdir } from 'node:fs/promises';
 const FIRST = '1995-06-16';
 const SITE = (process.env.APOD_SITE_URL || 'https://science.nasa.gov').replace(/\/$/, '');
 const POSTS = `${SITE}/wp-json/wp/v2/image-article`;
+const APOD_CATEGORY = 22766; // "category-apod" on science.nasa.gov
 const PER_PAGE = 100;       // the API's maximum
 const PAUSE_MS = 1000;      // pause between requests, to go easy on NASA's site
 const MAX_TRIES = 5;
@@ -54,9 +55,10 @@ const decode = (s) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) =>
     ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
     : (NAMED[e.toLowerCase()] ?? m));
 
-// APOD posts are titled "APOD: 2026 October 22 – …". The day comes from the post's publish
-// date (US Eastern), not its address: a few addresses have the wrong day or none at all.
-const isApodPost = (p) => /^\s*APOD\b/i.test(decode(p.title?.rendered || ''));
+// APOD posts are in the APOD category, and nearly all are titled "APOD: 2026 October 22 – …"
+// (1995-12-19, "Albert Einstein: 1879 – 1955", isn't). The day comes from the post's publish
+// date (US Eastern), not its address or title: a few of those have the wrong day.
+const isApodPost = (p) => p.categories?.includes(APOD_CATEGORY) || /^\s*APOD\b/i.test(decode(p.title?.rendered || ''));
 const postDate = (p) => (isDate((p.date || '').slice(0, 10)) ? p.date.slice(0, 10) : null);
 
 // "APOD: 2026 October 22 – The First Green Star" -> "The First Green Star" (also "APOD: 2026 April – …")
@@ -161,7 +163,7 @@ async function fetchPosts(label, params) {
   const found = [];
   try {
     for (let page = 1, totalPages = 1; page <= totalPages; page++) {
-      const q = new URLSearchParams({ search: 'apod', orderby: 'date', order: 'desc', per_page: PER_PAGE, page, _fields: FIELDS, ...params });
+      const q = new URLSearchParams({ categories: APOD_CATEGORY, orderby: 'date', order: 'desc', per_page: PER_PAGE, page, _fields: FIELDS, ...params });
       if (requests++) await sleep(PAUSE_MS);
       const r = await getJSON(`${POSTS}?${q}`);
       totalPages = r.totalPages;
