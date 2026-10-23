@@ -16,7 +16,6 @@ import { readFile, writeFile, rename } from 'node:fs/promises';
 const FIRST = '1995-06-16';
 const SITE = (process.env.APOD_SITE_URL || 'https://science.nasa.gov').replace(/\/$/, '');
 const POSTS = `${SITE}/wp-json/wp/v2/image-article`;
-const MEDIA = `${SITE}/wp-json/wp/v2/media`;
 const PER_PAGE = 100;       // the API's maximum
 const PAUSE_MS = 1000;      // pause between requests, to go easy on NASA's site
 const MAX_TRIES = 5;
@@ -145,7 +144,7 @@ try {
   for (let page = 1, totalPages = 1; page <= totalPages; page++) {
     const q = new URLSearchParams({
       search: 'apod', orderby: 'date', order: 'desc', per_page: PER_PAGE, page,
-      _fields: 'id,date,link,title,featured_media',
+      _fields: 'date,link,title,featured_image_url,content',
     });
     if (!wholeArchive) {
       q.set('after', `${addDays(start, -1)}T23:59:59`);
@@ -162,79 +161,58 @@ try {
   failed = true;
 }
 
-const fresh = [];
+// --- 2. images and media type ---------------------------------------------------------
+// NASA's data has no media-type field, so it comes from what the article embeds.
+// Only embeds count, not ordinary links: articles link to plenty of unrelated pages.
+const isApodImage = (url) => /\/cds\/apod\//.test(url || '');
+
+function embedIn(html) {
+  const attr = (tag) => new RegExp(`<${tag}\\b[^>]*?\\s(?:src|data)="([^"]+)"`, 'i').exec(html)?.[1];
+  const frame = attr('iframe');
+  if (frame) {
+    const yt = /youtube(?:-nocookie)?\.com\/embed\/([\w-]{6,})/.exec(frame);
+    if (yt) return { media_type: 'video', embed: `https://www.youtube.com/watch?v=${yt[1]}`, poster: `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg` };
+    if (/vimeo\.com\//.test(frame)) return { media_type: 'video', embed: frame };
+    return { media_type: 'interactive', embed: frame };
+  }
+  const video = attr('video') || (/<video\b/i.test(html) && attr('source'));
+  if (video || /<video\b/i.test(html)) return { media_type: 'video', embed: video || undefined };
+  const audio = attr('audio') || (/<audio\b/i.test(html) && attr('source'));
+  if (audio || /<audio\b/i.test(html)) return { media_type: 'audio', embed: audio || undefined };
+  const obj = attr('object') || attr('embed');
+  if (obj) return { media_type: 'interactive', embed: obj };
+  return null;
+}
+
+let added = 0, updated = 0, noImage = 0;
+const counts = {};
 for (const p of posts) {
   const date = dateFromLink(p.link);
   if (!date || date < start || date > end) continue;
-  fresh.push({ id: p.id, date, title: cleanTitle(p.title?.rendered), link: p.link, media: p.featured_media || 0 });
-}
+  const html = p.content?.rendered || '';
+  const e = { date, title: cleanTitle(p.title?.rendered), link: p.link };
 
-// --- 2. images -------------------------------------------------------------------
-const ids = [...new Set(fresh.map((e) => e.media).filter(Boolean))];
-const media = new Map();
-for (let i = 0; i < ids.length; i += PER_PAGE) {
-  const chunk = ids.slice(i, i + PER_PAGE);
-  const q = new URLSearchParams({ include: chunk.join(','), per_page: PER_PAGE, _fields: 'id,source_url,mime_type,media_details' });
-  try {
-    await sleep(PAUSE_MS);
-    const r = await getJSON(`${MEDIA}?${q}`);
-    for (const m of r.data) media.set(m.id, m);
-    console.log(`  images ${Math.min(i + PER_PAGE, ids.length)}/${ids.length}`);
-  } catch (e) {
-    console.error(`  Couldn't read images ${i + 1}-${i + chunk.length}: ${e.message}`);
-    failed = true;
+  // Older posts (1995-1998) have a generic NASA picture as their featured image;
+  // their real one is in the article text.
+  let image = (p.featured_image_url || '').split('?')[0] || undefined;
+  if (!isApodImage(image)) {
+    const m = /\ssrc="(https:\/\/assets\.science\.nasa\.gov\/[^"]*\/cds\/apod\/[^"]+\.(?:jpe?g|png|gif|webp))"/i.exec(html);
+    image = m ? decode(m[1]) : undefined;
   }
-}
-
-// --- 3. images from the article text ------------------------------------------------
-// Older posts (1995-1998) have a generic NASA picture as their featured image, and a few
-// have none. Their real image, or a YouTube video, is in the article text instead.
-const isApodImage = (url) => /\/cds\/apod\//.test(url || '');
-const need = fresh.filter((f) => !isApodImage(media.get(f.media)?.source_url));
-const fromContent = new Map();
-const CONTENT_CHUNK = 25; // article text is bulky, so fewer per request
-for (let i = 0; i < need.length; i += CONTENT_CHUNK) {
-  const chunk = need.slice(i, i + CONTENT_CHUNK);
-  const q = new URLSearchParams({ include: chunk.map((f) => f.id).join(','), per_page: CONTENT_CHUNK, _fields: 'id,content' });
-  try {
-    await sleep(PAUSE_MS);
-    const r = await getJSON(`${POSTS}?${q}`);
-    for (const p of r.data) {
-      const html = p.content?.rendered || '';
-      const img = /\ssrc="(https:\/\/assets\.science\.nasa\.gov\/[^"]*\/cds\/apod\/[^"]+\.(?:jpe?g|png|gif|webp))"/i.exec(html);
-      const yt = /youtube(?:-nocookie)?\.com\/embed\/([\w-]{6,})/.exec(html);
-      if (img) fromContent.set(p.id, { image: decode(img[1]) });
-      else if (yt) fromContent.set(p.id, { image: `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`, video: true });
-    }
-    console.log(`  article images ${Math.min(i + CONTENT_CHUNK, need.length)}/${need.length}`);
-  } catch (e) {
-    console.error(`  Couldn't read article text ${i + 1}-${i + chunk.length}: ${e.message}`);
-    failed = true;
-  }
-}
-
-// --- 4. merge and save -----------------------------------------------------------
-let added = 0, updated = 0, noImage = 0;
-for (const f of fresh) {
-  const m = media.get(f.media);
-  const c = fromContent.get(f.id);
-  const e = { date: f.date, title: f.title, link: f.link };
-  if (c) {
-    e.image = c.image;
-    const thumb = thumbFrom(c.image);
-    if (thumb) e.thumb = thumb;
-    if (c.video) e.media_type = 'video';
-  } else if (isApodImage(m?.source_url)) {
-    e.image = m.source_url;
-    // Prefer NASA's resizer; WordPress's own "small" sizes for APOD are 768-1280px.
-    const sizes = m.media_details?.sizes || {};
-    const small = sizes.medium || sizes.medium_large;
-    const thumb = thumbFrom(m.source_url) || small?.source_url;
-    if (thumb && thumb !== e.image) e.thumb = thumb;
-    if (/^video\//.test(m.mime_type || '')) e.media_type = 'video';
+  const media = embedIn(html);
+  if (!image && media?.poster) image = media.poster;
+  if (image) {
+    e.image = image;
+    const thumb = thumbFrom(image);
+    if (thumb && thumb !== image) e.thumb = thumb;
   } else {
     noImage++;
   }
+  if (media) {
+    e.media_type = media.media_type;
+    if (media.embed) e.embed = decode(media.embed).replace(/^\/\//, 'https://');
+  }
+  counts[e.media_type || 'image'] = (counts[e.media_type || 'image'] || 0) + 1;
   byDate.has(e.date) ? updated++ : added++;
   byDate.set(e.date, e);
 }
@@ -246,5 +224,6 @@ await writeFile(out + '.tmp', json);
 await rename(out + '.tmp', out);
 console.log(`Saved ${entries.length} entries to ${out} (${added} new, ${updated} refreshed` +
   `${noImage ? `, ${noImage} without an image` : ''}).`);
+if (added + updated) console.log('  This run: ' + Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', '));
 if (failed) console.error('Some requests failed. Run the same command again to fill in what was missed.');
 process.exit(failed ? 1 : 0);

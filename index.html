@@ -199,8 +199,9 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     const t = document.createElement('span'); t.className = 't'; t.textContent = it.title;
     cap.append(d, t); a.append(cap);
 
-    if (it.media_type === 'video') {
-      const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'Video';
+    const label = { video: 'Video', audio: 'Audio', interactive: 'Interactive' }[it.media_type];
+    if (label) {
+      const b = document.createElement('span'); b.className = 'badge'; b.textContent = label;
       a.append(b);
     }
     return a;

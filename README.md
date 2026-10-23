@@ -22,7 +22,7 @@ node fetch-apod.mjs --last 10                      # the 10 most recent days
 node fetch-apod.mjs --start 2024-01-01 --end 2024-01-31
 ```
 
-Existing entries are kept and merged. To build the whole archive (1995 to today) without putting much load on NASA's site, fetch one year at a time with a pause between years:
+Existing entries are kept and merged. Each entry has a `date`, `title`, `link`, and usually an `image` and `thumb`. Days whose article embeds a video, audio, or an interactive page also get a `media_type` (`video`, `audio` or `interactive`) and, where available, the `embed` address. The grid labels those tiles. To build the whole archive (1995 to today) without putting much load on NASA's site, fetch one year at a time with a pause between years:
 
 ```sh
 for y in $(seq 1995 2026); do
