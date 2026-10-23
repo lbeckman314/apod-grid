@@ -69,8 +69,9 @@ const cleanTitle = (rendered) => decode((rendered || '').replace(/<[^>]*>/g, '')
 function thumbFrom(url) {
   if (!url) return undefined;
   const params = 'w=480&h=480&fit=clip';
+  if (/\.gif(\?|$)/i.test(url)) return undefined; // the resizer can't do GIFs; they're small anyway
   if (url.includes('/dynamicimage/')) return url.split('?')[0] + '?' + params;
-  const m = /^https:\/\/assets\.science\.nasa\.gov\/content\/dam\/(.+?\.(?:jpe?g|png|gif|webp))(?:\/jcr:content.*)?$/i.exec(url);
+  const m = /^https:\/\/assets\.science\.nasa\.gov\/content\/dam\/(.+?\.(?:jpe?g|png|webp))(?:\/jcr:content.*)?$/i.exec(url);
   return m ? `https://assets.science.nasa.gov/dynamicimage/assets/${m[1]}?${params}` : undefined;
 }
 
@@ -78,7 +79,7 @@ async function getJSON(url) {
   for (let attempt = 1; ; attempt++) {
     let res;
     try {
-      res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'apod-grid fetch script' } });
+      res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'apod-grid (+https://github.com/lbeckman314/apod-grid)' } });
     } catch (e) {
       if (attempt >= MAX_TRIES) throw new Error(`network error: ${e.message}`);
       await sleep(2 ** attempt * 1000);
@@ -247,4 +248,3 @@ console.log(`Saved ${entries.length} entries to ${out} (${added} new, ${updated}
   `${noImage ? `, ${noImage} without an image` : ''}).`);
 if (failed) console.error('Some requests failed. Run the same command again to fill in what was missed.');
 process.exit(failed ? 1 : 0);
-
