@@ -73,14 +73,14 @@ section.month h2 {
 section.month h2 span { font: 400 12px var(--font-mono); color: var(--dust); }
 
 .grid {
-  display: grid; gap: 4px;
+  display: grid; gap: 0px;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 @media (min-width: 900px) { .grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
 
 .tile {
   position: relative; display: block; aspect-ratio: 1; max-width: 100%;
-  overflow: hidden; background: var(--panel); border-radius: 3px; text-decoration: none;
+  overflow: hidden; background: var(--panel); border-radius: 0px; text-decoration: none;
 }
 .tile img {
   width: 100%; height: 100%; object-fit: cover; display: block;
@@ -119,7 +119,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   .spinner { animation: none; }
 }
 @media (max-width: 560px) {
-  .grid { grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .grid { grid-template-columns: repeat(3, 1fr); gap: 0px; }
   .cap .t { -webkit-line-clamp: 2; font-size: 12px; }
 }
 </style>
