@@ -3,12 +3,16 @@
 //
 //   node fetch-apod.mjs --last 10                      # the 10 most recent days
 //   node fetch-apod.mjs --start 2024-01-01 --end 2024-01-31
-//   node fetch-apod.mjs --update                       # add days newer than the file's latest
+//   node fetch-apod.mjs --update                       # add new days, and refresh days NASA has edited
 //   node fetch-apod.mjs                                # the whole archive (~11,500 days, a few minutes)
 //
 // Options:
 //   --out FILE        output file (default: apod.json); existing entries are kept and merged
-//   --text-out FILE   each day's explanation, for the search index (default: apod-text.json)
+//   --details-out FILE  everything else about each day (default: apod-details.json)
+//
+// apod.json holds what the grid needs and stays small, since the grid loads all of it.
+// apod-details.json holds the rest: explanation text and HTML, credit HTML, editors,
+// full-resolution links, every image's size, and NASA's post IDs.
 //
 // No API key needed. Requires Node 18+ (built-in fetch). No dependencies.
 
@@ -26,11 +30,11 @@ const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const flag = (name) => args.includes(name);
 if (flag('--help') || flag('-h')) {
-  console.log((await readFile(new URL(import.meta.url), 'utf8')).split('\n').slice(1, 13).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+  console.log((await readFile(new URL(import.meta.url), 'utf8')).split('\n').slice(1, 17).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
   process.exit(0);
 }
 const out = opt('--out') || 'apod.json';
-const textOut = opt('--text-out') || 'apod-text.json';
+const detailsOut = opt('--details-out') || 'apod-details.json';
 
 // --- helpers ---------------------------------------------------------------
 // APOD posts on US Eastern time.
@@ -111,18 +115,21 @@ const byDate = new Map(existing.filter((e) => e.link).map((e) => [e.date, e]));
 const dropped = existing.length - byDate.size;
 if (dropped) console.log(`Removed ${dropped} old-format entries from ${out}.`);
 
-// Explanations live in their own file, keyed by date, so the grid never has to load them.
-let texts = {};
+// Details live in their own file, keyed by date, so the grid never has to load them.
+let details = {};
 try {
-  texts = JSON.parse(await readFile(textOut, 'utf8'));
+  details = JSON.parse(await readFile(detailsOut, 'utf8'));
 } catch (e) {
-  if (e.code !== 'ENOENT') { console.error(`Can't read ${textOut}: ${e.message}`); process.exit(1); }
+  if (e.code !== 'ENOENT') { console.error(`Can't read ${detailsOut}: ${e.message}`); process.exit(1); }
 }
 
 // --- range -----------------------------------------------------------------
 const today = todayET();
 let start, end = opt('--end') || today;
-if (flag('--update')) {
+const update = flag('--update');
+// The newest edit time we've saved; --update also refetches any post edited after it.
+const lastModified = [...byDate.values()].reduce((m, e) => (e.modified > m ? e.modified : m), '');
+if (update) {
   const latest = [...byDate.keys()].reduce((m, d) => (d > m ? d : m), '');
   start = latest ? addDays(latest, 1) : FIRST;
 } else if (opt('--last')) {
@@ -137,32 +144,47 @@ for (const [name, v] of [['--start', start], ['--end', end]]) {
 }
 if (start < FIRST) start = FIRST;
 if (end > today) end = today;
-if (start > end) { console.log(`Nothing to fetch: ${out} is already up to date.`); process.exit(0); }
+const newDays = start <= end;
+if (!newDays && !(update && lastModified)) { console.log(`Nothing to fetch: ${out} is already up to date.`); process.exit(0); }
 const wholeArchive = start === FIRST && end === today;
 
 // --- 1. posts ------------------------------------------------------------------
-console.log(`Fetching ${start} to ${end} from ${SITE} into ${out}`);
+const FIELDS = 'id,slug,date,date_gmt,modified,modified_gmt,link,title,content,author,coauthors,categories,featured_media,featured_image_url';
 let failed = false;
-const posts = [];
-try {
-  for (let page = 1, totalPages = 1; page <= totalPages; page++) {
-    const q = new URLSearchParams({
-      search: 'apod', orderby: 'date', order: 'desc', per_page: PER_PAGE, page,
-      _fields: 'date,link,title,featured_image_url,content',
-    });
-    if (!wholeArchive) {
-      q.set('after', `${addDays(start, -1)}T23:59:59`);
-      q.set('before', `${end}T23:59:59`);
+let requests = 0;
+
+async function fetchPosts(label, params) {
+  const found = [];
+  try {
+    for (let page = 1, totalPages = 1; page <= totalPages; page++) {
+      const q = new URLSearchParams({ search: 'apod', orderby: 'date', order: 'desc', per_page: PER_PAGE, page, _fields: FIELDS, ...params });
+      if (requests++) await sleep(PAUSE_MS);
+      const r = await getJSON(`${POSTS}?${q}`);
+      totalPages = r.totalPages;
+      found.push(...r.data);
+      console.log(`  ${label} page ${page}/${totalPages}: ${r.data.length}${page === 1 ? ` (${r.total} total)` : ''}`);
     }
-    if (page > 1) await sleep(PAUSE_MS);
-    const r = await getJSON(`${POSTS}?${q}`);
-    totalPages = r.totalPages;
-    posts.push(...r.data);
-    console.log(`  posts page ${page}/${totalPages}: ${r.data.length}${page === 1 ? ` (${r.total} total)` : ''}`);
+  } catch (e) {
+    console.error(`  Stopped reading ${label}: ${e.message}`);
+    failed = true;
   }
-} catch (e) {
-  console.error(`  Stopped reading posts: ${e.message}`);
-  failed = true;
+  return found;
+}
+
+const posts = [];
+if (newDays) {
+  console.log(`Fetching ${start} to ${end} from ${SITE} into ${out}`);
+  posts.push(...await fetchPosts('posts', wholeArchive ? {} : { after: `${addDays(start, -1)}T23:59:59`, before: `${end}T23:59:59` }));
+}
+// Posts NASA edited since our newest saved edit, on any day.
+const edited = new Set();
+if (update && lastModified) {
+  console.log(`Checking for posts edited after ${lastModified}`);
+  for (const p of await fetchPosts('edited posts', { modified_after: lastModified })) {
+    if (posts.some((q) => q.id === p.id)) continue;
+    edited.add(p.id);
+    posts.push(p);
+  }
 }
 
 // --- 2. images and media type ---------------------------------------------------------
@@ -197,10 +219,44 @@ function altIn(html) {
   return '';
 }
 
-// <p class="... media-detail-hero__description"><strong>Explanation:</strong> ... Tomorrow's picture: ...</p>
+// <p class="... media-detail-hero__description"><strong>Explanation:</strong> …
+// <br><br><strong>Tomorrow's picture:</strong> space bees</p>
+// Returns the explanation as HTML (NASA's, unsanitized) and as text, plus the teaser.
 function explanationIn(html) {
   const m = /<p\b[^>]*media-detail-hero__description[^>]*>([\s\S]*?)<\/p>/i.exec(html);
-  return m ? toText(m[1]).replace(/^Explanation:\s*/i, '').replace(/\s*Tomorrow['’]s picture:.*$/i, '').trim() : '';
+  if (!m) return {};
+  let body = m[1].trim().replace(/^<strong>\s*Explanation:?\s*<\/strong>\s*/i, '');
+  // Some migrated posts end with the old site's footer: "< | Archive | Submissions | … | >".
+  const footer = /<a\b[^>]*>\s*&lt;\s*<\/a>\s*\|/i.exec(body);
+  if (footer) body = body.slice(0, footer.index);
+  let tomorrow = '';
+  // Written several ways: "Tomorrow's picture:", "Tomorrow's APOD:", "Tomorrow:", bold or not.
+  const t = /(?:<br\b[^>]*>\s*)*(?:<(?:strong|b|em|i)>\s*)*Tomorrow(?:(?:&#8217;|&#039;|&rsquo;|['’])s\s+(?:picture|APOD|image))?\s*:\s*(?:<\/(?:strong|b|em|i)>\s*)*([\s\S]*)$/i.exec(body);
+  if (t) { tomorrow = toText(t[1]); body = body.slice(0, t.index); }
+  body = body.replace(/(?:\s*<br\b[^>]*>)+\s*$/i, '').trim();
+  return { html: body, text: toText(body).replace(/^Explanation:\s*/i, ''), tomorrow };
+}
+
+// The value cell of a details-table row, e.g. <th>Authors &amp; editors:</th><td>…</td>.
+const rowIn = (html, label) => new RegExp(`<th\\b[^>]*>\\s*${label}[^<]*<\\/th>\\s*<td\\b[^>]*>([\\s\\S]*?)<\\/td>`, 'i').exec(html)?.[1].trim();
+
+// Every APOD image in the article with its size, and the full-resolution link if the
+// picture links to one (older posts do; newer ones use the original as the image itself).
+const bare = (url) => decode(url).split('?')[0];
+const apodPath = (url) => /\/cds\/apod\/(.+)$/.exec(bare(url || ''))?.[1].replace(/\/jcr:content.*$/, '');
+function imagesIn(html) {
+  const images = [];
+  for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+    const src = /\ssrc="([^"]+)"/i.exec(tag)?.[1];
+    if (!src || !/\/cds\/apod\//.test(src)) continue;
+    const url = bare(src);
+    if (images.some((i) => i.url === url)) continue;
+    const w = +(/\swidth="(\d+)"/i.exec(tag)?.[1] || 0), h = +(/\sheight="(\d+)"/i.exec(tag)?.[1] || 0);
+    images.push({ url, ...(w && h ? { width: w, height: h } : {}) });
+  }
+  const linked = /<a\b[^>]*\shref="([^"]+\/cds\/apod\/[^"]+)"[^>]*>\s*<img\b/i.exec(html)?.[1];
+  const largest = images.filter((i) => i.width).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  return { images, hdurl: linked ? bare(linked) : largest?.url };
 }
 
 function embedIn(html) {
@@ -227,30 +283,30 @@ const seen = new Set();
 for (const p of posts) {
   if (!isApodPost(p)) continue;
   const date = postDate(p);
-  if (!date || date < start || date > end) continue;
+  if (!date) continue;
+  if (!edited.has(p.id) && (date < start || date > end)) continue;
   const html = p.content?.rendered || '';
-  const e = { date, title: cleanTitle(p.title?.rendered), link: p.link };
+
+  const e = { date, title: cleanTitle(p.title?.rendered), link: p.link, id: p.id, modified: p.modified };
   const { credit, copyright } = creditIn(html);
   if (credit) e.credit = credit; else noCredit++;
   if (copyright) e.copyright = true;
   const alt = altIn(html);
   if (alt) e.alt = alt;
-  const text = explanationIn(html);
-  if (text) texts[date] = text; else noText++;
 
   // Older posts (1995-1998) have a generic NASA picture as their featured image;
   // their real one is in the article text.
+  const { images, hdurl } = imagesIn(html);
   let image = (p.featured_image_url || '').split('?')[0] || undefined;
-  if (!isApodImage(image)) {
-    const m = /\ssrc="(https:\/\/assets\.science\.nasa\.gov\/[^"]*\/cds\/apod\/[^"]+\.(?:jpe?g|png|gif|webp))"/i.exec(html);
-    image = m ? decode(m[1]) : undefined;
-  }
+  if (!isApodImage(image)) image = images[0]?.url;
   const media = embedIn(html);
   if (!image && media?.poster) image = media.poster;
   if (image) {
     e.image = image;
     const thumb = thumbFrom(image);
     if (thumb && thumb !== image) e.thumb = thumb;
+    const size = images.find((i) => i.width && apodPath(i.url) === apodPath(image)) || images.find((i) => i.width);
+    if (size) { e.width = size.width; e.height = size.height; }
   } else {
     noImage++;
   }
@@ -258,6 +314,20 @@ for (const p of posts) {
     e.media_type = media.media_type;
     if (media.embed) e.embed = decode(media.embed).replace(/^\/\//, 'https://');
   }
+
+  const ex = explanationIn(html);
+  if (!ex.text) noText++;
+  const creditHtml = rowIn(html, '[^<]*(?:Credit|Copyright)');
+  const editors = rowIn(html, 'Authors');
+  details[date] = Object.fromEntries(Object.entries({
+    id: p.id, slug: p.slug, date_gmt: p.date_gmt, modified: p.modified, modified_gmt: p.modified_gmt,
+    explanation: ex.text, explanation_html: ex.html, tomorrow: ex.tomorrow,
+    credit_html: creditHtml, editors: editors && toText(editors),
+    hdurl, images: images.length ? images : undefined,
+    author: p.author, coauthors: p.coauthors?.length ? p.coauthors : undefined,
+    categories: p.categories, featured_media: p.featured_media || undefined,
+  }).filter(([, v]) => v !== undefined && v !== ''));
+
   counts[e.media_type || 'image'] = (counts[e.media_type || 'image'] || 0) + 1;
   if (seen.has(date)) console.warn(`  Two posts for ${date}; keeping ${p.link}`);
   seen.add(date);
@@ -270,13 +340,14 @@ const entries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 const json = '[\n' + entries.map((e) => JSON.stringify(e)).join(',\n') + '\n]\n';
 await writeFile(out + '.tmp', json);
 await rename(out + '.tmp', out);
-const textJson = '{\n' + Object.keys(texts).sort().reverse()
-  .map((d) => `${JSON.stringify(d)}:${JSON.stringify(texts[d])}`).join(',\n') + '\n}\n';
-await writeFile(textOut + '.tmp', textJson);
-await rename(textOut + '.tmp', textOut);
+const detailsJson = '{\n' + Object.keys(details).sort().reverse()
+  .map((d) => `${JSON.stringify(d)}:${JSON.stringify(details[d])}`).join(',\n') + '\n}\n';
+await writeFile(detailsOut + '.tmp', detailsJson);
+await rename(detailsOut + '.tmp', detailsOut);
 console.log(`Saved ${entries.length} entries to ${out} (${added} new, ${updated} refreshed` +
   `${noImage ? `, ${noImage} without an image` : ''}${noCredit ? `, ${noCredit} without a credit` : ''}` +
   `${noText ? `, ${noText} without an explanation` : ''}).`);
+if (edited.size) console.log(`  Refreshed ${edited.size} edited ${edited.size === 1 ? 'day' : 'days'}.`);
 if (added + updated) console.log('  This run: ' + Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', '));
 if (failed) console.error('Some requests failed. Run the same command again to fill in what was missed.');
 process.exit(failed ? 1 : 0);

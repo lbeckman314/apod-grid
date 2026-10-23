@@ -28,21 +28,21 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Pushes deploy what's in the repo; only scheduled and manual runs fetch new days.
-      - name: Fetch new days
+      # Pushes deploy what's in the repo; only scheduled and manual runs fetch data.
+      - name: Fetch new and edited days
         if: github.event_name != 'push'
         run: node fetch-apod.mjs --update
 
       - name: Commit data if it changed
         if: github.event_name != 'push'
         run: |
-          if git diff --quiet -- apod.json apod-text.json; then
+          if git diff --quiet -- apod.json apod-details.json; then
             echo "No new days."
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898237+github-actions[bot]@users.noreply.github.com'
-          git add apod.json apod-text.json
+          git add apod.json apod-details.json
           git commit -m "Update apod.json to $(node -p 'require("./apod.json")[0].date')"
           git push
 

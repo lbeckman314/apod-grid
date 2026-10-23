@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build the Pagefind search index (pagefind/) from apod.json and apod-text.json.
+// Build the Pagefind search index (pagefind/) from apod.json and apod-details.json.
 //
 //   npm install
 //   npm run build-search
@@ -13,13 +13,14 @@ import * as pagefind from 'pagefind';
 const OUT = 'pagefind';
 
 const entries = JSON.parse(await readFile('apod.json', 'utf8'));
-let texts = {};
+let details = {};
 try {
-  texts = JSON.parse(await readFile('apod-text.json', 'utf8'));
+  details = JSON.parse(await readFile('apod-details.json', 'utf8'));
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
-  console.warn('No apod-text.json; indexing titles and credits only.');
+  console.warn('No apod-details.json; indexing titles and credits only.');
 }
+const explanation = (date) => details[date]?.explanation;
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -33,7 +34,7 @@ function page(e) {
 <main data-pagefind-body data-pagefind-meta="${metaSpec}" data-pagefind-sort="date[data-date]"${metaAttrs}>
 <h1 data-pagefind-weight="10">${esc(e.title)}</h1>
 ${e.credit ? `<p data-pagefind-weight="5">${esc(e.credit)}</p>` : ''}
-${texts[e.date] ? `<p>${esc(texts[e.date])}</p>` : ''}
+${explanation(e.date) ? `<p>${esc(explanation(e.date))}</p>` : ''}
 ${e.alt ? `<p>${esc(e.alt)}</p>` : ''}
 </main></body></html>`;
 }
@@ -53,5 +54,5 @@ if (w.errors.length) throw new Error(`Couldn't write the index: ${w.errors.join(
 await pagefind.close();
 
 console.log(`Indexed ${entries.length - failed} of ${entries.length} days into ${OUT}/` +
-  ` (${Object.keys(texts).length} with explanations).`);
+  ` (${entries.filter((e) => explanation(e.date)).length} with explanations).`);
 process.exit(failed ? 1 : 0);
