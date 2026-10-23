@@ -1,0 +1,12 @@
+{
+  "name": "apod-grid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build-search": "node build-search.mjs",
+    "update": "node fetch-apod.mjs --update"
+  },
+  "devDependencies": {
+    "pagefind": "1.5.2"
+  }
+}

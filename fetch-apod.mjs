@@ -8,6 +8,7 @@
 //
 // Options:
 //   --out FILE        output file (default: apod.json); existing entries are kept and merged
+//   --text-out FILE   each day's explanation, for the search index (default: apod-text.json)
 //
 // No API key needed. Requires Node 18+ (built-in fetch). No dependencies.
 
@@ -27,10 +28,11 @@ const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const flag = (name) => args.includes(name);
 if (flag('--help') || flag('-h')) {
-  console.log((await readFile(new URL(import.meta.url), 'utf8')).split('\n').slice(1, 12).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+  console.log((await readFile(new URL(import.meta.url), 'utf8')).split('\n').slice(1, 13).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
   process.exit(0);
 }
 const out = opt('--out') || 'apod.json';
+const textOut = opt('--text-out') || 'apod-text.json';
 
 // --- helpers ---------------------------------------------------------------
 // APOD posts on US Eastern time.
@@ -115,6 +117,14 @@ const byDate = new Map(existing.filter((e) => e.link).map((e) => [e.date, e]));
 const dropped = existing.length - byDate.size;
 if (dropped) console.log(`Removed ${dropped} old-format entries from ${out}.`);
 
+// Explanations live in their own file, keyed by date, so the grid never has to load them.
+let texts = {};
+try {
+  texts = JSON.parse(await readFile(textOut, 'utf8'));
+} catch (e) {
+  if (e.code !== 'ENOENT') { console.error(`Can't read ${textOut}: ${e.message}`); process.exit(1); }
+}
+
 // --- range -----------------------------------------------------------------
 const today = todayET();
 let start, end = opt('--end') || today;
@@ -165,6 +175,22 @@ try {
 // NASA's data has no media-type field, so it comes from what the article embeds.
 // Only embeds count, not ordinary links: articles link to plenty of unrelated pages.
 const isApodImage = (url) => /\/cds\/apod\//.test(url || '');
+// Block-level breaks become spaces; inline tags vanish, so "<a>Sun</a>," stays "Sun,".
+const toText = (html) => decode(html.replace(/<(?:br|\/p|\/div|\/li|\/td)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, ''))
+  .replace(/\s+/g, ' ').replace(/\s+([,.;:)])/g, '$1').replace(/\(\s+/g, '(').trim();
+
+// The article's details table has a row like <th>Credit</th><td>Credit &amp; Copyright: Steve Mandel</td>
+// (newer posts label it "Credit &amp; Copyright").
+function creditIn(html) {
+  const m = /<th\b[^>]*>[^<]*(?:Credit|Copyright)[^<]*<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>/i.exec(html);
+  return m ? toText(m[1]).replace(/^(?:Image\s+)?(?:Credits?(?:\s*(?:&|and)\s*Copyright)?|Copyright)\s*:\s*/i, '').trim() : '';
+}
+
+// <p class="... media-detail-hero__description"><strong>Explanation:</strong> ... Tomorrow's picture: ...</p>
+function explanationIn(html) {
+  const m = /<p\b[^>]*media-detail-hero__description[^>]*>([\s\S]*?)<\/p>/i.exec(html);
+  return m ? toText(m[1]).replace(/^Explanation:\s*/i, '').replace(/\s*Tomorrow['’]s picture:.*$/i, '').trim() : '';
+}
 
 function embedIn(html) {
   const attr = (tag) => new RegExp(`<${tag}\\b[^>]*?\\s(?:src|data)="([^"]+)"`, 'i').exec(html)?.[1];
@@ -184,13 +210,17 @@ function embedIn(html) {
   return null;
 }
 
-let added = 0, updated = 0, noImage = 0;
+let added = 0, updated = 0, noImage = 0, noCredit = 0, noText = 0;
 const counts = {};
 for (const p of posts) {
   const date = dateFromLink(p.link);
   if (!date || date < start || date > end) continue;
   const html = p.content?.rendered || '';
   const e = { date, title: cleanTitle(p.title?.rendered), link: p.link };
+  const credit = creditIn(html);
+  if (credit) e.credit = credit; else noCredit++;
+  const text = explanationIn(html);
+  if (text) texts[date] = text; else noText++;
 
   // Older posts (1995-1998) have a generic NASA picture as their featured image;
   // their real one is in the article text.
@@ -222,8 +252,13 @@ const entries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 const json = '[\n' + entries.map((e) => JSON.stringify(e)).join(',\n') + '\n]\n';
 await writeFile(out + '.tmp', json);
 await rename(out + '.tmp', out);
+const textJson = '{\n' + Object.keys(texts).sort().reverse()
+  .map((d) => `${JSON.stringify(d)}:${JSON.stringify(texts[d])}`).join(',\n') + '\n}\n';
+await writeFile(textOut + '.tmp', textJson);
+await rename(textOut + '.tmp', textOut);
 console.log(`Saved ${entries.length} entries to ${out} (${added} new, ${updated} refreshed` +
-  `${noImage ? `, ${noImage} without an image` : ''}).`);
+  `${noImage ? `, ${noImage} without an image` : ''}${noCredit ? `, ${noCredit} without a credit` : ''}` +
+  `${noText ? `, ${noText} without an explanation` : ''}).`);
 if (added + updated) console.log('  This run: ' + Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', '));
 if (failed) console.error('Some requests failed. Run the same command again to fill in what was missed.');
 process.exit(failed ? 1 : 0);

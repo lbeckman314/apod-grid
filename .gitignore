@@ -1,0 +1,3 @@
+node_modules/
+# Built by build-search.mjs; the deploy workflow builds it fresh.
+pagefind/

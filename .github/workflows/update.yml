@@ -1,20 +1,24 @@
-name: Update APOD data
+name: Update data and deploy site
 
 on:
   schedule:
     # Daily at 06:17 UTC, a couple of hours after the new APOD posts (00:05 US Eastern).
     - cron: '17 6 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: update-apod
   cancel-in-progress: false
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,18 +26,47 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
+      # Pushes deploy what's in the repo; only scheduled and manual runs fetch new days.
       - name: Fetch new days
+        if: github.event_name != 'push'
         run: node fetch-apod.mjs --update
 
-      - name: Commit apod.json if it changed
+      - name: Commit data if it changed
+        if: github.event_name != 'push'
         run: |
-          if git diff --quiet apod.json; then
+          if git diff --quiet -- apod.json apod-text.json; then
             echo "No new days."
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898237+github-actions[bot]@users.noreply.github.com'
-          git add apod.json
+          git add apod.json apod-text.json
           git commit -m "Update apod.json to $(node -p 'require("./apod.json")[0].date')"
           git push
+
+      - name: Build search index
+        run: |
+          npm ci
+          npm run build-search
+
+      - name: Assemble site
+        run: |
+          mkdir _site
+          cp -r index.html apod.json pagefind _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
