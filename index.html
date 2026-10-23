@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>APOD Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky toolbar, then month-by-month sections of square thumbnails, newest first, loading older months as you scroll. */
+:root {
+  --sky: #07090f;        /* page background: night sky */
+  --panel: #10141f;      /* toolbar and tile placeholder */
+  --line: #1f2636;       /* hairlines and borders */
+  --star: #e8ecf5;       /* primary text */
+  --dust: #8a93a8;       /* secondary text */
+  --glow: #f2b84b;       /* accent: warm starlight */
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --gutter: max(16px, env(safe-area-inset-left, 0px));
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--sky);
+  color: var(--star);
+  font: 15px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: inherit; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+
+header.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+  padding-block: 14px;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: color-mix(in srgb, var(--sky) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { margin: 0; font: 800 20px/1 var(--font-display); letter-spacing: -0.01em; }
+.brand h1 span { color: var(--glow); }
+.brand small { font: 400 12px var(--font-mono); color: var(--dust); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.controls label { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dust); }
+.controls input {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; font-family: var(--font-mono); font-size: 13px;
+}
+.controls input[type="month"] { width: 10.5em; }
+.btn {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 12px; cursor: pointer; text-decoration: none; font-size: 14px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--dust); }
+.btn.accent { background: var(--glow); border-color: var(--glow); color: #1a1205; font-weight: 600; }
+
+main { padding-block: 8px 48px; }
+section.month { margin-top: 28px; }
+section.month h2 {
+  display: flex; align-items: baseline; gap: 12px;
+  margin: 0 0 10px; font: 600 18px/1.2 var(--font-display);
+}
+section.month h2 span { font: 400 12px var(--font-mono); color: var(--dust); }
+
+.grid {
+  display: grid; gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+@media (min-width: 900px) { .grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+
+.tile {
+  position: relative; display: block; aspect-ratio: 1; max-width: 100%;
+  overflow: hidden; background: var(--panel); border-radius: 3px; text-decoration: none;
+}
+.tile img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  opacity: 0; transition: opacity .35s ease, transform .5s ease;
+}
+.tile img.loaded { opacity: 1; }
+.tile:hover img, .tile:focus-visible img { transform: scale(1.04); }
+.cap {
+  position: absolute; inset: auto 0 0 0; padding: 22px 9px 8px;
+  display: grid; gap: 1px;
+  background: linear-gradient(transparent, rgba(4, 6, 10, .88));
+  opacity: 0; transition: opacity .2s ease;
+}
+.tile:hover .cap, .tile:focus-visible .cap, .tile.noimg .cap { opacity: 1; }
+.cap .d { font: 500 11px var(--font-mono); color: var(--glow); letter-spacing: 0.04em; }
+.cap .t { font: 600 13px/1.25 var(--font-body); color: #f4f6fb;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.badge {
+  position: absolute; top: 6px; right: 6px; padding: 2px 6px; border-radius: 3px;
+  font: 500 10px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em;
+  background: rgba(4, 6, 10, .75); color: #f4f6fb;
+}
+.tile.noimg { background: radial-gradient(circle at 30% 25%, #1b2233, var(--panel)); }
+.tile.noimg .cap { background: none; inset: auto 0 0 0; }
+
+.status { margin: 32px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--dust); font-size: 14px; }
+.status.error { color: #ff9b8a; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--glow); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#sentinel { height: 1px; }
+footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 65ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile img, .cap { transition: none; }
+  .tile:hover img { transform: none; }
+  .spinner { animation: none; }
+}
+@media (max-width: 560px) {
+  .grid { grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .cap .t { -webkit-line-clamp: 2; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <h1>APOD <span>Grid</span></h1>
+    <small id="count">Astronomy Picture of the Day</small>
+  </div>
+  <div class="controls">
+    <label for="jump">Jump to</label>
+    <input type="month" id="jump" min="1995-06">
+    <a class="btn" id="random" href="https://science.nasa.gov/apod/random-apod/" target="_blank" rel="noopener">Random day</a>
+  </div>
+</header>
+
+<main id="main"></main>
+<div id="status" class="status" hidden></div>
+<div id="sentinel"></div>
+<footer>
+  Pictures and text from NASA's <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">Astronomy Picture of the Day</a>.
+  Some images are copyrighted by their photographers. Each tile opens that day's page on science.nasa.gov.
+</footer>
+
+<script>
+(() => {
+  // Built by fetch-apod.mjs. Serve this folder over HTTP; browsers won't load it from file://.
+  const DATA_URL = 'apod.json';
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const $ = (id) => document.getElementById(id);
+  const main = $('main'), statusEl = $('status'), sentinel = $('sentinel');
+  const shortDate = (iso) => `${MONTHS[+iso.slice(5, 7) - 1].slice(0, 3)} ${+iso.slice(8, 10)}, ${iso.slice(0, 4)}`;
+
+  let all = [];          // every entry, newest first
+  let months = [];       // [{ key: 'YYYY-MM', items }], newest first
+  let next = 0;          // index into months of the next one to render
+
+  function setStatus(kind, text) {
+    if (!kind) { statusEl.hidden = true; statusEl.replaceChildren(); return; }
+    statusEl.hidden = false;
+    statusEl.className = 'status' + (kind === 'error' ? ' error' : '');
+    statusEl.replaceChildren();
+    if (kind === 'loading') { const s = document.createElement('span'); s.className = 'spinner'; statusEl.append(s); }
+    statusEl.append(document.createTextNode(text));
+  }
+
+  // --- rendering -----------------------------------------------------------
+  function tile(it) {
+    const a = document.createElement('a');
+    a.className = 'tile';
+    a.href = it.link;
+    a.target = '_blank'; a.rel = 'noopener';
+    a.title = `${it.title} (${it.date})`;
+
+    const srcs = [it.thumb, it.image].filter(Boolean);
+    if (srcs.length) {
+      const img = document.createElement('img');
+      img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.title;
+      img.referrerPolicy = 'no-referrer';
+      let i = 0;
+      img.onload = () => img.classList.add('loaded');
+      img.onerror = () => {
+        i++;
+        if (i < srcs.length) img.src = srcs[i];
+        else { img.remove(); a.classList.add('noimg'); }
+      };
+      img.src = srcs[0];
+      a.append(img);
+    } else {
+      a.classList.add('noimg');
+    }
+
+    const cap = document.createElement('span'); cap.className = 'cap';
+    const d = document.createElement('span'); d.className = 'd'; d.textContent = shortDate(it.date);
+    const t = document.createElement('span'); t.className = 't'; t.textContent = it.title;
+    cap.append(d, t); a.append(cap);
+
+    if (it.media_type === 'video') {
+      const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'Video';
+      a.append(b);
+    }
+    return a;
+  }
+
+  function renderMonth({ key, items }) {
+    const [y, m] = key.split('-').map(Number);
+    const sec = document.createElement('section'); sec.className = 'month';
+    sec.id = `m-${key}`;
+    const h = document.createElement('h2');
+    h.textContent = `${MONTHS[m - 1]} ${y} `;
+    const n = document.createElement('span'); n.textContent = `${items.length} ${items.length === 1 ? 'picture' : 'pictures'}`;
+    h.append(n);
+    const grid = document.createElement('div'); grid.className = 'grid';
+    grid.append(...items.map(tile));
+    sec.append(h, grid);
+    main.append(sec);
+  }
+
+  const sentinelVisible = () => sentinel.getBoundingClientRect().top < window.innerHeight + 1200;
+
+  // Render months until the page is filled a screen or so past the bottom.
+  function fill() {
+    let budget = 6; // months per pass, so a jump never blocks for long
+    while (next < months.length && budget-- > 0 && sentinelVisible()) renderMonth(months[next++]);
+    if (next >= months.length && months.length) setStatus('info', `You reached the earliest picture in apod.json: ${shortDate(all[all.length - 1].date)}.`);
+    else if (next < months.length && sentinelVisible()) requestAnimationFrame(fill);
+  }
+
+  new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) fill();
+  }, { rootMargin: '1200px 0px' }).observe(sentinel);
+
+  function showFrom(index) {
+    next = index;
+    main.replaceChildren();
+    setStatus(null);
+    window.scrollTo({ top: 0 });
+    fill();
+  }
+
+  // --- controls ------------------------------------------------------------
+  const jump = $('jump');
+  jump.addEventListener('change', () => {
+    if (!jump.value || !months.length) return;
+    const i = months.findIndex((mo) => mo.key <= jump.value);
+    showFrom(i < 0 ? months.length - 1 : i);
+  });
+
+  $('random').addEventListener('click', function () {
+    if (all.length) this.href = all[Math.floor(Math.random() * all.length)].link;
+  });
+
+  // --- start ---------------------------------------------------------------
+  async function start() {
+    setStatus('loading', 'Loading the archive…');
+    let data;
+    try {
+      const res = await fetch(DATA_URL, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+    } catch (e) {
+      setStatus('error', location.protocol === 'file:'
+        ? 'Browsers block loading apod.json from a file. In this folder, run "python3 -m http.server" and open http://localhost:8000.'
+        : `Couldn't load apod.json (${e.message}). Run "node fetch-apod.mjs --last 10" in this folder to create it.`);
+      return;
+    }
+
+    all = data.filter((e) => e && e.date && e.link).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const byKey = new Map();
+    for (const e of all) {
+      const key = e.date.slice(0, 7);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(e);
+    }
+    months = [...byKey].map(([key, items]) => ({ key, items }));
+    if (!months.length) { setStatus('error', 'apod.json has no entries yet. Run "node fetch-apod.mjs --last 10" to add some.'); return; }
+
+    jump.min = months[months.length - 1].key;
+    jump.max = jump.value = months[0].key;
+    const [from, to] = [all[all.length - 1].date.slice(0, 4), all[0].date.slice(0, 4)];
+    const years = from === to ? to : `${from}–${to}`;
+    $('count').textContent = `${all.length.toLocaleString()} pictures, ${years}`;
+    showFrom(0);
+  }
+  start();
+})();
+</script>
+</body>
+</html>
+
