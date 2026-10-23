@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build the Pagefind search index (pagefind/) from apod.json and apod-details.json.
+// Build the Pagefind search index (pagefind/) from apod.json and apod-details/*.json.
 //
 //   npm install
 //   npm run build-search
@@ -7,18 +7,20 @@
 // Each day becomes one search record holding its title, credit and explanation. Titles
 // are weighted highest, then credits, so a match there ranks above one in an explanation.
 
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import * as pagefind from 'pagefind';
 
 const OUT = 'pagefind';
 
 const entries = JSON.parse(await readFile('apod.json', 'utf8'));
-let details = {};
+const details = {};
 try {
-  details = JSON.parse(await readFile('apod-details.json', 'utf8'));
+  for (const f of (await readdir('apod-details')).filter((f) => /^\d{4}\.json$/.test(f))) {
+    Object.assign(details, JSON.parse(await readFile(`apod-details/${f}`, 'utf8')));
+  }
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
-  console.warn('No apod-details.json; indexing titles and credits only.');
+  console.warn('No apod-details/; indexing titles and credits only.');
 }
 const explanation = (date) => details[date]?.explanation;
 

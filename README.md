@@ -3,7 +3,7 @@
 A photo-grid view of NASA's [Astronomy Picture of the Day](https://science.nasa.gov/apod/) archive. Each thumbnail links to that day's page on science.nasa.gov, and the search box finds days by title, photographer credit or explanation text.
 
 - `index.html`: the grid and search box. It reads `apod.json` and needs no build step.
-- `fetch-apod.mjs`: builds `apod.json` and `apod-details.json` from science.nasa.gov. Requires Node 18 or newer and has no dependencies.
+- `fetch-apod.mjs`: builds `apod.json` and `apod-details/` from science.nasa.gov. Requires Node 18 or newer and has no dependencies.
 - `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `pagefind/`.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
 
@@ -34,7 +34,7 @@ Browsers won't load `apod.json` from a `file://` page, so serve the folder over 
 | `alt` | A description of the image, where NASA provides one (mostly recent years). |
 | `media_type`, `embed` | Only on days whose article embeds a `video`, `audio` or `interactive` page, with its address where available. |
 
-`apod-details.json` maps each date to everything else, so the grid never has to load it. Only the search index reads it.
+`apod-details/` holds everything else, one file per year (`apod-details/2026.json`), each mapping dates to details. The grid never loads them; only the search index reads them. Splitting by year keeps each file around 1 MB, and a daily update only rewrites the current year.
 
 | Field | |
 |---|---|

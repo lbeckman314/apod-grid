@@ -8,15 +8,15 @@
 //
 // Options:
 //   --out FILE        output file (default: apod.json); existing entries are kept and merged
-//   --details-out FILE  everything else about each day (default: apod-details.json)
+//   --details-dir DIR   everything else about each day, one file per year (default: apod-details)
 //
 // apod.json holds what the grid needs and stays small, since the grid loads all of it.
-// apod-details.json holds the rest: explanation text and HTML, credit HTML, editors,
+// apod-details/YYYY.json holds the rest: explanation text and HTML, credit HTML, editors,
 // full-resolution links, every image's size, and NASA's post IDs.
 //
 // No API key needed. Requires Node 18+ (built-in fetch). No dependencies.
 
-import { readFile, writeFile, rename } from 'node:fs/promises';
+import { readFile, writeFile, rename, readdir, mkdir } from 'node:fs/promises';
 
 const FIRST = '1995-06-16';
 const SITE = (process.env.APOD_SITE_URL || 'https://science.nasa.gov').replace(/\/$/, '');
@@ -34,7 +34,7 @@ if (flag('--help') || flag('-h')) {
   process.exit(0);
 }
 const out = opt('--out') || 'apod.json';
-const detailsOut = opt('--details-out') || 'apod-details.json';
+const detailsDir = opt('--details-dir') || 'apod-details';
 
 // --- helpers ---------------------------------------------------------------
 // APOD posts on US Eastern time.
@@ -115,12 +115,16 @@ const byDate = new Map(existing.filter((e) => e.link).map((e) => [e.date, e]));
 const dropped = existing.length - byDate.size;
 if (dropped) console.log(`Removed ${dropped} old-format entries from ${out}.`);
 
-// Details live in their own file, keyed by date, so the grid never has to load them.
-let details = {};
+// Details live in their own files, one per year and keyed by date, so the grid never has to
+// load them and a daily update only rewrites the current year's file.
+const details = {};
+const touchedYears = new Set();
 try {
-  details = JSON.parse(await readFile(detailsOut, 'utf8'));
+  for (const f of (await readdir(detailsDir)).filter((f) => /^\d{4}\.json$/.test(f))) {
+    Object.assign(details, JSON.parse(await readFile(`${detailsDir}/${f}`, 'utf8')));
+  }
 } catch (e) {
-  if (e.code !== 'ENOENT') { console.error(`Can't read ${detailsOut}: ${e.message}`); process.exit(1); }
+  if (e.code !== 'ENOENT') { console.error(`Can't read ${detailsDir}/: ${e.message}`); process.exit(1); }
 }
 
 // --- range -----------------------------------------------------------------
@@ -319,6 +323,7 @@ for (const p of posts) {
   if (!ex.text) noText++;
   const creditHtml = rowIn(html, '[^<]*(?:Credit|Copyright)');
   const editors = rowIn(html, 'Authors');
+  touchedYears.add(date.slice(0, 4));
   details[date] = Object.fromEntries(Object.entries({
     id: p.id, slug: p.slug, date_gmt: p.date_gmt, modified: p.modified, modified_gmt: p.modified_gmt,
     explanation: ex.text, explanation_html: ex.html, tomorrow: ex.tomorrow,
@@ -340,10 +345,14 @@ const entries = [...byDate.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 const json = '[\n' + entries.map((e) => JSON.stringify(e)).join(',\n') + '\n]\n';
 await writeFile(out + '.tmp', json);
 await rename(out + '.tmp', out);
-const detailsJson = '{\n' + Object.keys(details).sort().reverse()
-  .map((d) => `${JSON.stringify(d)}:${JSON.stringify(details[d])}`).join(',\n') + '\n}\n';
-await writeFile(detailsOut + '.tmp', detailsJson);
-await rename(detailsOut + '.tmp', detailsOut);
+await mkdir(detailsDir, { recursive: true });
+for (const year of touchedYears) {
+  const days = Object.keys(details).filter((d) => d.startsWith(year)).sort().reverse();
+  const yearJson = '{\n' + days.map((d) => `${JSON.stringify(d)}:${JSON.stringify(details[d])}`).join(',\n') + '\n}\n';
+  const file = `${detailsDir}/${year}.json`;
+  await writeFile(file + '.tmp', yearJson);
+  await rename(file + '.tmp', file);
+}
 console.log(`Saved ${entries.length} entries to ${out} (${added} new, ${updated} refreshed` +
   `${noImage ? `, ${noImage} without an image` : ''}${noCredit ? `, ${noCredit} without a credit` : ''}` +
   `${noText ? `, ${noText} without an explanation` : ''}).`);
