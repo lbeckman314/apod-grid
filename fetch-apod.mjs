@@ -20,8 +20,6 @@ const POSTS = `${SITE}/wp-json/wp/v2/image-article`;
 const PER_PAGE = 100;       // the API's maximum
 const PAUSE_MS = 1000;      // pause between requests, to go easy on NASA's site
 const MAX_TRIES = 5;
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july',
-  'august', 'september', 'october', 'november', 'december'];
 
 // --- arguments -------------------------------------------------------------
 const args = process.argv.slice(2);
@@ -44,7 +42,6 @@ const addDays = (iso, n) => {
 };
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const pad = (n) => String(n).padStart(2, '0');
 
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', ndash: '–',
   mdash: '—', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”' };
@@ -53,17 +50,14 @@ const decode = (s) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) =>
     ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
     : (NAMED[e.toLowerCase()] ?? m));
 
-// The day comes from the page address, e.g. /image-article/apod-2026-october-22-the-first-green-star/.
-// Posts without that pattern aren't APOD days and are skipped.
-function dateFromLink(link) {
-  const m = /\/apod-(\d{4})-([a-z]+)-(\d{1,2})(?:-|\/)/.exec(link || '');
-  const month = m ? MONTHS.indexOf(m[2]) : -1;
-  return month < 0 ? null : `${m[1]}-${pad(month + 1)}-${pad(m[3])}`;
-}
+// APOD posts are titled "APOD: 2026 October 22 – …". The day comes from the post's publish
+// date (US Eastern), not its address: a few addresses have the wrong day or none at all.
+const isApodPost = (p) => /^\s*APOD\b/i.test(decode(p.title?.rendered || ''));
+const postDate = (p) => (isDate((p.date || '').slice(0, 10)) ? p.date.slice(0, 10) : null);
 
-// "APOD: 2026 October 22 – The First Green Star" -> "The First Green Star"
+// "APOD: 2026 October 22 – The First Green Star" -> "The First Green Star" (also "APOD: 2026 April – …")
 const cleanTitle = (rendered) => decode((rendered || '').replace(/<[^>]*>/g, ''))
-  .replace(/^APOD:\s*\d{4}\s+[A-Za-z]+\s+\d{1,2}\s*[–—-]\s*/, '').trim() || 'Untitled';
+  .replace(/^APOD:\s*[\w,.\s]*?\d[\w,.\s]*?\s*[–—-]\s*/, '').trim() || 'Untitled';
 
 // A ~30 KB version for the grid. NASA's image service resizes on request (it ignores
 // crop settings, so the grid crops tiles to squares itself).
@@ -181,9 +175,26 @@ const toText = (html) => decode(html.replace(/<(?:br|\/p|\/div|\/li|\/td)\b[^>]*
 
 // The article's details table has a row like <th>Credit</th><td>Credit &amp; Copyright: Steve Mandel</td>
 // (newer posts label it "Credit &amp; Copyright").
+// "Copyright" or "License" in the label or the prefix means the image isn't public domain.
 function creditIn(html) {
-  const m = /<th\b[^>]*>[^<]*(?:Credit|Copyright)[^<]*<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>/i.exec(html);
-  return m ? toText(m[1]).replace(/^(?:Image\s+)?(?:Credits?(?:\s*(?:&|and)\s*Copyright)?|Copyright)\s*:\s*/i, '').trim() : '';
+  const m = /<th\b[^>]*>([^<]*(?:Credit|Copyright)[^<]*)<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>/i.exec(html);
+  if (!m) return {};
+  // Lines are split by <br>; a "Text: …" line names the explanation's writer, not the image's.
+  const text = m[2].split(/<br\b[^>]*>/i).map((l) => toText(l).replace(/(?:^|\s+)Text\s*:.*$/i, '').replace(/[;,\s]+$/, ''))
+    .filter(Boolean).join('; ');
+  const prefix = /^(?:[a-z]+\s+){0,3}(?:Credits?(?:\s*(?:&|and)\s*(?:Copyright|License))?|Copyright)\s*:\s*/i.exec(text)?.[0] || '';
+  return { credit: text.slice(prefix.length).trim(), copyright: /copyright|license/i.test(m[1] + prefix) };
+}
+
+// The main image's description, from the first APOD image in the article that has one.
+function altIn(html) {
+  for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+    if (!/\ssrc="[^"]*\/cds\/apod\//i.test(tag)) continue;
+    const alt = /\salt="([^"]*)"/i.exec(tag)?.[1];
+    // Old posts all say "See Explanation. Clicking on the picture will download…".
+    if (alt && alt.trim() && !/^\s*See Explanation\b/i.test(alt)) return toText(alt);
+  }
+  return '';
 }
 
 // <p class="... media-detail-hero__description"><strong>Explanation:</strong> ... Tomorrow's picture: ...</p>
@@ -212,13 +223,18 @@ function embedIn(html) {
 
 let added = 0, updated = 0, noImage = 0, noCredit = 0, noText = 0;
 const counts = {};
+const seen = new Set();
 for (const p of posts) {
-  const date = dateFromLink(p.link);
+  if (!isApodPost(p)) continue;
+  const date = postDate(p);
   if (!date || date < start || date > end) continue;
   const html = p.content?.rendered || '';
   const e = { date, title: cleanTitle(p.title?.rendered), link: p.link };
-  const credit = creditIn(html);
+  const { credit, copyright } = creditIn(html);
   if (credit) e.credit = credit; else noCredit++;
+  if (copyright) e.copyright = true;
+  const alt = altIn(html);
+  if (alt) e.alt = alt;
   const text = explanationIn(html);
   if (text) texts[date] = text; else noText++;
 
@@ -243,6 +259,8 @@ for (const p of posts) {
     if (media.embed) e.embed = decode(media.embed).replace(/^\/\//, 'https://');
   }
   counts[e.media_type || 'image'] = (counts[e.media_type || 'image'] || 0) + 1;
+  if (seen.has(date)) console.warn(`  Two posts for ${date}; keeping ${p.link}`);
+  seen.add(date);
   byDate.has(e.date) ? updated++ : added++;
   byDate.set(e.date, e);
 }

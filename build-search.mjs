@@ -25,7 +25,7 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 // Meta values are read from data- attributes, so they aren't indexed as searchable text.
 function page(e) {
-  const meta = { title: e.title, date: e.date, link: e.link, image: e.thumb || e.image, image_full: e.image, credit: e.credit, media_type: e.media_type };
+  const meta = { title: e.title, date: e.date, link: e.link, image: e.thumb || e.image, image_full: e.image, credit: e.credit, media_type: e.media_type, alt: e.alt };
   const keys = Object.keys(meta).filter((k) => meta[k]);
   const metaAttrs = keys.map((k) => ` data-${k.replace('_', '-')}="${esc(meta[k])}"`).join('');
   const metaSpec = keys.map((k) => `${k}[data-${k.replace('_', '-')}]`).join(', ');
@@ -34,6 +34,7 @@ function page(e) {
 <h1 data-pagefind-weight="10">${esc(e.title)}</h1>
 ${e.credit ? `<p data-pagefind-weight="5">${esc(e.credit)}</p>` : ''}
 ${texts[e.date] ? `<p>${esc(texts[e.date])}</p>` : ''}
+${e.alt ? `<p>${esc(e.alt)}</p>` : ''}
 </main></body></html>`;
 }
 

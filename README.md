@@ -25,9 +25,11 @@ Browsers won't load `apod.json` from a `file://` page, so serve the folder over 
 
 | Field | |
 |---|---|
-| `date`, `title`, `link` | Always present. `link` is the day's page on science.nasa.gov. |
+| `date`, `title`, `link` | Always present. `date` is the post's publish date, since a few page addresses have the wrong day. `link` is the day's page on science.nasa.gov. |
 | `credit` | The image credit, such as `Steve Mandel, Hidden Valley Observatory`. |
+| `copyright` | `true` when the credit says the image is copyrighted or licensed, so not public domain. |
 | `image`, `thumb` | The full image and a ~480px version for the grid. |
+| `alt` | A description of the image, where NASA provides one (mostly recent years). |
 | `media_type`, `embed` | Only on days whose article embeds a `video`, `audio` or `interactive` page, with its address where available. |
 
 `apod-text.json` maps each date to its explanation text. Only the search index uses it, so the grid never loads it.

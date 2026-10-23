@@ -185,7 +185,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     const srcs = [it.thumb, it.image].filter(Boolean);
     if (srcs.length) {
       const img = document.createElement('img');
-      img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.title;
+      img.loading = 'lazy'; img.decoding = 'async'; img.alt = it.alt || it.title;
       img.referrerPolicy = 'no-referrer';
       let i = 0;
       img.onload = () => img.classList.add('loaded');
@@ -283,7 +283,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
 
   const fromPagefind = ({ meta: m }) => ({
     date: m.date, title: m.title, link: m.link, thumb: m.image, image: m.image_full,
-    credit: m.credit, media_type: m.media_type,
+    credit: m.credit, media_type: m.media_type, alt: m.alt,
   });
 
   async function runSearch(query) {
