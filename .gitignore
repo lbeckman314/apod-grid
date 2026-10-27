@@ -1,0 +1,5 @@
+node_modules/
+# Built by build-search.mjs; the deploy workflow builds it fresh.
+pagefind/
+# The site as deployed, assembled by npm run build.
+_site/
