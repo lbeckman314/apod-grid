@@ -1,3 +1,21 @@
+---
+// The newest few months of apod.json, built into the page so the grid shows them at once
+// while the full archive loads in the background.
+// The page's <style> and <script> are is:inline, so Astro leaves them as written: the script
+// builds its own elements and loads pagefind/ at run time, which scoping or bundling would break.
+import { readFile } from 'node:fs/promises';
+
+const MONTHS = 3;
+const entries = JSON.parse(await readFile('apod.json', 'utf8'))
+  .filter((e) => e && e.date && e.link)
+  .sort((a, b) => (a.date < b.date ? 1 : -1));
+// Whole months only, so the page can carry on from apod.json where these end.
+const keys = new Set([...new Set(entries.map((e) => e.date.slice(0, 7)))].slice(0, MONTHS));
+const recent = entries.filter((e) => keys.has(e.date.slice(0, 7)));
+const seed = recent.length ? { total: entries.length, earliest: entries[entries.length - 1].date, recent } : null;
+// Escaping every "<" keeps a "</script>" in a title from ending the script element.
+const seedJson = seed ? JSON.stringify(seed).replace(/</g, '\\u003c') : '';
+---
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
+<style is:inline>
 /* Layout: a sticky toolbar, then month-by-month sections of square thumbnails, newest first, loading older months as you scroll. */
 :root {
   --sky: #07090f;        /* page background: night sky */
@@ -187,9 +205,9 @@ main, .status, footer { margin-right: var(--rail-w); }
   <a href="about.html">About this site</a> · <a href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
 
-<!-- build-page.mjs fills this with the newest months of apod.json, so they show without waiting for it. -->
-<script type="application/json" id="seed"></script>
-<script>
+<!-- The newest months of apod.json (see the top of this file), so they show without waiting for it. -->
+<script type="application/json" id="seed" is:inline set:html={seedJson}></script>
+<script is:inline>
 (() => {
   // Built by fetch-apod.mjs. Serve this folder over HTTP; browsers won't load it from file://.
   const DATA_URL = 'apod.json';

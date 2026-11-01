@@ -1,3 +1,7 @@
+---
+layout: ../layouts/About.astro
+---
+
 ## What this is
 
 APOD Grid shows NASA's [Astronomy Picture of the Day](https://science.nasa.gov/apod/) archive as one long wall of photos: every day since June 16, 1995, newest first, a month at a time.
@@ -13,7 +17,7 @@ Each picture links to that day's page on science.nasa.gov, where you'll find the
 
 ## How we built it
 
-The whole site is one HTML page, a few small scripts, and data files kept in the repository. There's no server or database.
+The site is a small [Astro](https://astro.build/) project: the grid page, this page, and data files kept in the repository. It builds to plain static files, so there's no server or database.
 
 ### Fetching the archive
 
@@ -35,7 +39,7 @@ When the site deploys, `build-search.mjs` builds a [Pagefind](https://pagefind.a
 
 ### Loading instantly
 
-The full `apod.json` is several megabytes. So that the grid never waits for it, `build-page.mjs` puts the newest three months straight into the deployed page. Those show right away while the rest of the archive loads in the background.
+The full `apod.json` is several megabytes. So that the grid never waits for it, the page's build step puts the newest three months straight into the page. Those show right away while the rest of the archive loads in the background.
 
 ### Browsing
 
@@ -43,7 +47,7 @@ The grid draws a few months at a time and adds more as you scroll, so the page s
 
 ### Writing this page
 
-This page is written in Markdown, in `about.md`. When the site builds, `build-about.mjs` turns it into HTML with [marked](https://marked.js.org/) and places it in `about.template.html`, which holds the page's styles, toolbar and footer.
+This page is written in Markdown, in `src/pages/about.md`. Astro turns it into HTML and places it in a layout, `src/layouts/About.astro`, which holds the page's styles, toolbar and footer.
 
 ## The data
 
@@ -62,12 +66,16 @@ The pictures and text come from NASA's Astronomy Picture of the Day, written and
 
 ## Run it yourself
 
-The code is on [GitHub](https://github.com/lbeckman314/apod-grid). You need Node 18 or newer.
+The code is on [GitHub](https://github.com/lbeckman314/apod-grid). You need Node 22.22 or newer.
 
 ```sh
 npm install
-npm run build                   # search index and the deployed site, in _site/
-python3 -m http.server -d _site  # then open http://localhost:8000
+npm run dev       # then open http://localhost:4321
 ```
 
-Serving the folder without building works too, but then the grid waits for the full archive before showing anything, search covers titles and credits only, and there's no About page.
+The development server reloads as you edit. It has no search index, so search covers titles and credits only. To try the site as deployed, with full search:
+
+```sh
+npm run build     # the site and its search index, in dist/
+npm run preview
+```

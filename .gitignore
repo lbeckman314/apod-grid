@@ -1,5 +1,5 @@
 node_modules/
-# Built by build-search.mjs; the deploy workflow builds it fresh.
-pagefind/
-# The site as deployed, assembled by npm run build.
-_site/
+# The site as deployed, built by npm run build (search index included).
+dist/
+# Astro's generated types and cache.
+.astro/
