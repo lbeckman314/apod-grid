@@ -51,17 +51,18 @@ header.bar {
 .brand h1 span { color: var(--glow); }
 .brand small { font: 400 12px var(--font-mono); color: var(--dust); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.controls label { font: 500 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dust); }
 .controls input {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 8px; font-family: var(--font-mono); font-size: 13px;
 }
-.controls input[type="month"] { width: 10.5em; }
 .controls input[type="search"] { width: 16em; max-width: 100%; font-family: var(--font-body); font-size: 14px; }
 .btn {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; cursor: pointer; text-decoration: none; font-size: 14px; white-space: nowrap;
 }
+/* Icons are GitHub's Octicons (MIT), inline so they take the text colour. */
+.btn .icon { width: 16px; height: 16px; flex: none; fill: currentColor; }
 .btn:hover { border-color: var(--dust); }
 .btn.accent { background: var(--glow); border-color: var(--glow); color: #1a1205; font-weight: 600; }
 
@@ -108,6 +109,9 @@ section.month h2 span { font: 400 12px var(--font-mono); color: var(--dust); }
   background: rgba(4, 6, 10, .75); color: #f4f6fb;
 }
 .tile.noimg { background: radial-gradient(circle at 30% 25%, #1b2233, var(--panel)); }
+/* The day named in the address (?date=YYYY-MM-DD), outlined for a moment. */
+.tile.flash::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px var(--glow); animation: flash 2.5s ease forwards; }
+@keyframes flash { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
 .tile.noimg .cap { background: none; inset: auto 0 0 0; }
 
 .status { margin: 32px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--dust); font-size: 14px; }
@@ -125,6 +129,32 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
 @media (max-width: 560px) {
   .grid { grid-template-columns: repeat(3, 1fr); gap: 0px; }
   .cap .t { -webkit-line-clamp: 2; font-size: 12px; }
+  /* Search shrinks so About and GitHub stay on its row. */
+  .controls { width: 100%; flex-wrap: nowrap; }
+  .controls input[type="search"] { flex: 1; width: auto; min-width: 0; }
+}
+
+/* Timeline: a minimap of the whole archive down the right edge, newest at the top, with hashes
+   like the iOS photo straightening wheel. It has a column of its own beside the grid. */
+:root { --rail-w: 60px; }
+main, .status, footer { margin-right: var(--rail-w); }
+.rail {
+  position: fixed; z-index: 4;
+  top: calc(env(safe-area-inset-top, 0px) + var(--bar-h, 64px) + 12px); bottom: 16px;
+  right: max(8px, env(safe-area-inset-right, 0px)); width: var(--rail-w);
+  display: flex; flex-direction: column;
+}
+.rail[hidden] { display: none; }
+.rail-track {
+  position: relative; flex: 1; min-height: 0; cursor: pointer; border-radius: 6px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.rail-track canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: opacity .2s ease; }
+.rail-track.idle canvas { opacity: .45; }
+.rail-bubble {
+  position: absolute; right: calc(100% + 4px); transform: translateY(-50%); white-space: nowrap; pointer-events: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+  font: 500 12px var(--font-mono); color: var(--star); box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
 }
 </style>
 </head>
@@ -136,11 +166,17 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   </div>
   <div class="controls">
     <input type="search" id="q" placeholder="Search titles, credits, text" aria-label="Search" autocomplete="off" spellcheck="false">
-    <label for="jump">Jump to</label>
-    <input type="month" id="jump" min="1995-06">
-    <a class="btn" id="random" href="https://science.nasa.gov/apod/random-apod/" target="_blank" rel="noopener">Random day</a>
+    <a class="btn" href="about.html"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>About</a>
+    <a class="btn" href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
   </div>
 </header>
+
+<nav class="rail" id="rail" aria-label="Timeline" hidden>
+  <div class="rail-track" id="railTrack" role="slider" tabindex="0" aria-label="Month" aria-orientation="vertical">
+    <canvas id="railDial"></canvas>
+    <div class="rail-bubble" id="railBubble" hidden></div>
+  </div>
+</nav>
 
 <main id="main"></main>
 <div id="status" class="status" hidden></div>
@@ -148,8 +184,11 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
 <footer>
   Pictures and text from NASA's <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">Astronomy Picture of the Day</a>.
   Some images are copyrighted by their photographers. Each tile opens that day's page on science.nasa.gov.
+  <a href="about.html">About this site</a> · <a href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
 
+<!-- build-page.mjs fills this with the newest months of apod.json, so they show without waiting for it. -->
+<script type="application/json" id="seed"></script>
 <script>
 (() => {
   // Built by fetch-apod.mjs. Serve this folder over HTTP; browsers won't load it from file://.
@@ -164,6 +203,8 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   let months = [];       // [{ key: 'YYYY-MM', items }], newest first
   let next = 0;          // index into months of the next one to render
   let searching = false; // while showing search results, scrolling doesn't add months
+  let complete = false;  // false while only the newest months built into the page are loaded
+  let archive;           // resolves once apod.json has loaded or failed
 
   function setStatus(kind, text) {
     if (!kind) { statusEl.hidden = true; statusEl.replaceChildren(); return; }
@@ -181,6 +222,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     a.href = it.link;
     a.target = '_blank'; a.rel = 'noopener';
     a.title = `${it.title} (${it.date})`;
+    a.dataset.date = it.date;
 
     const srcs = [it.thumb, it.image].filter(Boolean);
     if (srcs.length) {
@@ -240,7 +282,10 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     if (searching) return;
     let budget = 6; // months per pass, so a jump never blocks for long
     while (next < months.length && budget-- > 0 && sentinelVisible()) renderMonth(months[next++]);
-    if (next >= months.length && months.length) setStatus('info', `You reached the earliest picture in apod.json: ${shortDate(all[all.length - 1].date)}.`);
+    if (next >= months.length && months.length) {
+      if (complete) setStatus('info', `You reached the earliest picture in apod.json: ${shortDate(all[all.length - 1].date)}.`);
+      else setStatus('loading', ''); // older months arrive with apod.json
+    }
     else if (next < months.length && sentinelVisible()) requestAnimationFrame(fill);
   }
 
@@ -255,20 +300,291 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     setStatus(null);
     window.scrollTo({ top: 0 });
     fill();
+    showCurrent();
   }
 
-  // --- controls ------------------------------------------------------------
-  const jump = $('jump');
-  jump.addEventListener('change', () => {
-    if (!jump.value || !months.length) return;
+  // --- going to a month ----------------------------------------------------
+  // Show the grid from the month `key` (or the nearest older one).
+  // With `day` ('YYYY-MM-DD'), also scroll to that day's picture and highlight it.
+  // Runs at once when the month is loaded, so callers can rely on the grid having changed.
+  let goRun = 0;
+  async function goTo(key, day) {
+    if (!months.length) return;
+    const run = ++goRun;
+    if (!complete && key < months[months.length - 1].key) {
+      await archive;
+      if (!complete || run !== goRun) return; // a later jump replaced this one
+    }
     q.value = '';
-    const i = months.findIndex((mo) => mo.key <= jump.value);
+    const i = months.findIndex((mo) => mo.key <= key);
     showFrom(i < 0 ? months.length - 1 : i);
+    const t = day && main.querySelector(`.tile[data-date="${day}"]`);
+    if (t) {
+      t.scrollIntoView({ block: 'center' });
+      t.classList.add('flash');
+      setTimeout(() => t.classList.remove('flash'), 2500);
+    }
+  }
+
+  // --- timeline ------------------------------------------------------------
+  // A minimap of the whole archive, newest at the top, drawn as hashes like the iOS photo
+  // straightening wheel. A yellow line marks where the page is, partway between hashes while
+  // you're partway through a month, and the hashes near it glow. Click or drag anywhere to go
+  // to that month, or click a year to go to the start of that year.
+  const rail = $('rail'), track = $('railTrack'), dial = $('railDial');
+  const bubble = $('railBubble');
+  const header = document.querySelector('header.bar');
+  const ctx = dial.getContext('2d');
+  const rgb = (name) => { const h = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)); };
+  const DUST = rgb('--dust'), STAR = rgb('--star'), GLOW = rgb('--glow');
+  const mix = (a, b, t) => `rgb(${a.map((d, k) => Math.round(d + (b[k] - d) * t)).join()})`;
+  const PAD = 8;     // px between the newest or earliest month and the end of the track
+  const REACH = 40;  // px either side of the line where hashes glow
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const monthName = (key) => `${MONTHS[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}`;
+
+  let calendar = [];   // 'YYYY-MM', newest first
+  let years = [];      // [{ year, i }], each at the middle of that year's months
+  let labels = [];     // [{ year, y }] as last drawn, for clicks on a year
+  let current = null;  // the month at the top of the screen
+  let pos = 0;         // the fractional index into calendar at the line: 3.5 is halfway through month 3
+  let target = 0;      // where pos is easing to
+  let drag = null;     // { y, year } while the pointer is down
+  let hovering = false;
+  let frame = 0, lastT = 0;
+
+  const monthAt = (p) => Math.max(0, Math.min(calendar.length - 1, Math.floor(p + 0.01)));
+  const perMonth = (h) => (h - 2 * PAD) / calendar.length; // px
+  const yAt = (p, h) => PAD + p * perMonth(h);
+
+  function buildRail(earliest, latest) {
+    const at = calendar[monthAt(pos)];
+    calendar = [];
+    let y = +latest.slice(0, 4), m = +latest.slice(5, 7);
+    for (const end = earliest.slice(0, 7); ;) {
+      const key = `${y}-${String(m).padStart(2, '0')}`;
+      if (key < end) break;
+      calendar.push(key);
+      if (--m === 0) { m = 12; y--; }
+    }
+    years = [];
+    calendar.forEach((key, i) => {
+      const year = key.slice(0, 4);
+      if (!years.length || years[years.length - 1].year !== year) years.push({ year, first: i, i });
+      const yr = years[years.length - 1];
+      yr.i = (yr.first + i + 1) / 2;
+    });
+    track.setAttribute('aria-valuemin', 0);
+    track.setAttribute('aria-valuemax', calendar.length - 1);
+    pos = target = Math.max(0, calendar.indexOf(at));
+    rail.hidden = false;
+    showCurrent();
+    draw();
+  }
+
+  function draw() {
+    const w = dial.clientWidth, h = dial.clientHeight, dpr = devicePixelRatio || 1;
+    if (!w || !h) return;
+    if (dial.width !== Math.round(w * dpr) || dial.height !== Math.round(h * dpr)) {
+      dial.width = Math.round(w * dpr); dial.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (!calendar.length) return;
+
+    const right = w - 4, line = yAt(pos, h), per = perMonth(h);
+    // A hash per month when there's room, else every 2nd, 3rd, 6th or 12th month, always on January.
+    const step = [1, 2, 3, 6].find((s) => s * per >= 4) || 12;
+    ctx.lineCap = 'round';
+    calendar.forEach((key, i) => {
+      if ((+key.slice(5, 7) - 1) % step) return;
+      const y = yAt(i, h);
+      const near = Math.max(0, 1 - Math.abs(y - line) / REACH); // 1 at the line, 0 past REACH
+      const jan = key.endsWith('-01');
+      const len = (jan ? 11 : 7) + 12 * near * near;
+      ctx.globalAlpha = Math.min(1, (jan ? 0.55 : 0.35) + 0.65 * near);
+      ctx.strokeStyle = mix(DUST, STAR, near ** 1.5);
+      ctx.lineWidth = 1 + near ** 4;
+      ctx.beginPath(); ctx.moveTo(right - len, y); ctx.lineTo(right, y); ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = mix(GLOW, GLOW, 0);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(right - 22, line); ctx.lineTo(right + 2, line); ctx.stroke();
+
+    // Label every year when there's room, else every 2nd or 5th, never overlapping.
+    const here = calendar[monthAt(pos)].slice(0, 4);
+    const every = 12 * per >= 15 ? 1 : 12 * per >= 7.5 ? 2 : 5;
+    ctx.font = `500 10px ${getComputedStyle(document.body).getPropertyValue('--font-mono')}`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    labels = [];
+    let last = -Infinity;
+    for (const { year, i } of years) {
+      const y = yAt(i, h);
+      if (+year % every || y - last < 13) continue;
+      last = y;
+      labels.push({ year, y });
+      ctx.globalAlpha = year === here ? 1 : 0.7;
+      ctx.fillStyle = year === here ? mix(GLOW, GLOW, 0) : mix(DUST, DUST, 0);
+      ctx.fillText(year, right - 26, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Ease the line toward target after a jump, redrawing as it goes.
+  function animate(t) {
+    const dt = lastT ? Math.min(50, t - lastT) : 16;
+    lastT = t; frame = 0;
+    if (!drag) {
+      pos = still ? target : pos + (target - pos) * (1 - Math.pow(0.75, dt / 16));
+      if (Math.abs(target - pos) < 0.005) pos = target;
+    }
+    draw();
+    if (!drag && pos !== target) frame = requestAnimationFrame(animate);
+    else lastT = 0;
+  }
+  const kick = () => { if (!frame) frame = requestAnimationFrame(animate); };
+
+  function setAria(i) {
+    // Sliders count up toward the top, so older months get lower values.
+    track.setAttribute('aria-valuenow', calendar.length - 1 - i);
+    track.setAttribute('aria-valuetext', monthName(calendar[i]));
+  }
+
+  // Show `i` at the bubble: by the line while dragging, or at `y` when hovering.
+  function showBubble(i, y) {
+    bubble.hidden = false;
+    bubble.textContent = monthName(calendar[i]);
+    bubble.style.top = `${y === undefined ? yAt(pos, track.clientHeight) : y - track.getBoundingClientRect().top}px`;
+  }
+
+  // Move the line to month `i` and show it in the grid.
+  function select(i) {
+    target = i;
+    setAria(i);
+    if (!hovering) bubble.hidden = true;
+    kick();
+    goTo(calendar[i]);
+  }
+
+
+  const indexAt = (clientY) => {
+    const r = track.getBoundingClientRect();
+    return monthAt((clientY - r.top - PAD) / perMonth(r.height));
+  };
+
+  // Find how far the page is through the month at the top of the screen, below the toolbar,
+  // and move the line to match: 0 at the month's heading, almost 1 at its last row.
+  function showCurrent() {
+    track.classList.toggle('idle', searching);
+    if (searching) { current = null; return; }
+    const top = header.getBoundingClientRect().bottom;
+    const sec = [...main.querySelectorAll('section.month')].find((s) => s.getBoundingClientRect().bottom > top);
+    if (!sec) return;
+    current = sec.id.slice(2);
+    setAddress(current);
+    const i = calendar.indexOf(current);
+    if (i < 0 || drag) return;
+    const r = sec.getBoundingClientRect();
+    const p = i + Math.max(0, Math.min(0.99, (top - r.top) / r.height));
+    setAria(i);
+    target = p;
+    // Scrolling moves the line with the page; a jump of a month or more glides there.
+    if (Math.abs(p - pos) < 1) { pos = p; draw(); }
+    else kick();
+  }
+
+  // Keep ?date= in the address on the month on screen, so a reload or a shared link opens there.
+  // The newest month needs none. A day from the address stays while its month is on screen.
+  function setAddress(key) {
+    const u = new URL(location.href), was = u.searchParams.get('date') || '';
+    if (key === calendar[0]) u.searchParams.delete('date');
+    else if (!was.startsWith(key)) u.searchParams.set('date', key);
+    if (u.href !== location.href) try { history.replaceState(null, '', u); } catch {}
+  }
+
+  let scrollQueued = false;
+  addEventListener('scroll', () => {
+    if (scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => { scrollQueued = false; showCurrent(); });
+  }, { passive: true });
+
+  // While the pointer is down, the line follows it and the grid follows the line: a month that's
+  // already drawn scrolls into place, partway through it as the line is partway through its span;
+  // one that isn't is drawn first. At most once a frame.
+  let scrubFrame = 0, scrubTo = 0;
+  function scrub(clientY) {
+    const r = track.getBoundingClientRect();
+    pos = target = Math.max(0, Math.min(calendar.length - 0.01, (clientY - r.top - PAD) / perMonth(r.height)));
+    showBubble(monthAt(pos));
+    draw();
+    scrubTo = pos;
+    if (!scrubFrame) scrubFrame = requestAnimationFrame(flushScrub);
+  }
+  function flushScrub() {
+    if (!scrubFrame) return;
+    cancelAnimationFrame(scrubFrame);
+    scrubFrame = 0;
+    showAt(scrubTo);
+  }
+  function showAt(p) {
+    const i = monthAt(p), key = calendar[i];
+    let sec = searching ? null : document.getElementById(`m-${key}`);
+    if (!sec) {
+      goTo(key); // draws the month now when it's loaded, or later once apod.json is
+      sec = document.getElementById(`m-${key}`);
+    } else goRun++; // drop any jump still waiting for apod.json
+    if (!sec) return;
+    const r = sec.getBoundingClientRect();
+    window.scrollTo({ top: scrollY + r.top - header.getBoundingClientRect().bottom + (p - i) * r.height });
+  }
+  track.addEventListener('pointerdown', (e) => {
+    if (!calendar.length || e.button > 0) return;
+    e.preventDefault();
+    track.setPointerCapture(e.pointerId);
+    const r = track.getBoundingClientRect(), y = e.clientY - r.top;
+    const label = e.clientX - r.left < r.width - 26 && labels.find((l) => Math.abs(l.y - y) < 7);
+    drag = { y: e.clientY, year: label ? label.year : null };
+    scrub(e.clientY);
+  });
+  track.addEventListener('pointermove', (e) => {
+    if (!calendar.length) return;
+    if (drag) scrub(e.clientY);
+    else if (e.pointerType === 'mouse') showBubble(indexAt(e.clientY), e.clientY);
+  });
+  track.addEventListener('pointerup', (e) => {
+    if (!drag) return;
+    // The grid is already there; a click on a year label goes to the start of that year (its newest month).
+    const year = Math.abs(e.clientY - drag.y) < 4 && drag.year;
+    drag = null;
+    if (year) {
+      cancelAnimationFrame(scrubFrame);
+      scrubFrame = 0;
+      select(calendar.findIndex((k) => k.startsWith(year)));
+    } else {
+      flushScrub();
+      setAria(monthAt(pos));
+      if (!hovering) bubble.hidden = true;
+    }
+  });
+  track.addEventListener('pointercancel', () => { drag = null; bubble.hidden = true; showCurrent(); });
+  track.addEventListener('pointerenter', () => { hovering = true; });
+  track.addEventListener('pointerleave', () => { hovering = false; if (!drag) bubble.hidden = true; });
+
+  track.addEventListener('keydown', (e) => {
+    const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -12, PageDown: 12 }[e.key];
+    let i = monthAt(target);
+    if (e.key === 'Home') i = 0;
+    else if (e.key === 'End') i = calendar.length - 1;
+    else if (step) i = Math.max(0, Math.min(calendar.length - 1, i + step));
+    else return;
+    e.preventDefault();
+    select(i);
   });
 
-  $('random').addEventListener('click', function () {
-    if (all.length) this.href = all[Math.floor(Math.random() * all.length)].link;
-  });
+  new ResizeObserver(() => document.documentElement.style.setProperty('--bar-h', `${header.offsetHeight}px`)).observe(header);
+  new ResizeObserver(draw).observe(track);
 
   // --- search --------------------------------------------------------------
   // Uses the Pagefind index (pagefind/, built by build-search.mjs) when it's there, which
@@ -297,6 +613,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
       const r = await pagefind.search(query);
       results = r.results.map((x) => async () => fromPagefind(await x.data()));
     } else {
+      await archive;
       const words = query.toLowerCase().split(/\s+/).filter(Boolean);
       results = all
         .filter((e) => { const hay = `${e.title} ${e.credit || ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
@@ -315,6 +632,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
     sec.append(h, grid, more);
     main.replaceChildren(sec);
     window.scrollTo({ top: 0 });
+    showCurrent();
     setStatus(results.length ? null : 'info', `No days match “${query}”.`);
 
     let shown = 0;
@@ -341,8 +659,25 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   });
 
   // --- start ---------------------------------------------------------------
-  async function start() {
-    setStatus('loading', 'Loading the archive…');
+  function setData(entries) {
+    all = entries.filter((e) => e && e.date && e.link).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const byKey = new Map();
+    for (const e of all) {
+      const key = e.date.slice(0, 7);
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(e);
+    }
+    months = [...byKey].map(([key, items]) => ({ key, items }));
+  }
+
+  function showSummary(total, earliest, latest) {
+    const [from, to] = [earliest.slice(0, 4), latest.slice(0, 4)];
+    const years = from === to ? to : `${from}–${to}`;
+    $('count').textContent = `${total.toLocaleString()} pictures, ${years}`;
+    buildRail(earliest, latest);
+  }
+
+  async function loadArchive() {
     let data;
     try {
       const res = await fetch(DATA_URL, { cache: 'no-cache' });
@@ -355,22 +690,39 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
       return;
     }
 
-    all = data.filter((e) => e && e.date && e.link).sort((a, b) => (a.date < b.date ? 1 : -1));
-    const byKey = new Map();
-    for (const e of all) {
-      const key = e.date.slice(0, 7);
-      if (!byKey.has(key)) byKey.set(key, []);
-      byKey.get(key).push(e);
-    }
-    months = [...byKey].map(([key, items]) => ({ key, items }));
+    // Carry on after the last month shown, which may have moved if apod.json is newer than the page.
+    const last = next > 0 ? months[next - 1].key : null;
+    setData(data);
     if (!months.length) { setStatus('error', 'apod.json has no entries yet. Run "node fetch-apod.mjs --last 10" to add some.'); return; }
+    if (last) { const i = months.findIndex((mo) => mo.key < last); next = i < 0 ? months.length : i; }
+    complete = true;
 
-    jump.min = months[months.length - 1].key;
-    jump.max = jump.value = months[0].key;
-    const [from, to] = [all[all.length - 1].date.slice(0, 4), all[0].date.slice(0, 4)];
-    const years = from === to ? to : `${from}–${to}`;
-    $('count').textContent = `${all.length.toLocaleString()} pictures, ${years}`;
-    showFrom(0);
+    showSummary(all.length, all[all.length - 1].date, all[0].date);
+    if (!searching) { setStatus(null); fill(); }
+  }
+
+  function start() {
+    // ?date=YYYY-MM-DD, YYYY-MM or YYYY. A year opens at its newest month.
+    const want = (new URLSearchParams(location.search).get('date') || '').match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+    const wantKey = want && `${want[1]}-${want[2] || '12'}`;
+    const seed = JSON.parse($('seed').textContent || 'null');
+    if (seed && seed.recent.length) {
+      setData(seed.recent);
+      showSummary(seed.total, seed.earliest, all[0].date);
+      // goTo below shows a date in these months at once; an older one waits for apod.json,
+      // with only a spinner meanwhile.
+      if (!wantKey) showFrom(0);
+      else if (wantKey < months[months.length - 1].key) setStatus('loading', '');
+    } else {
+      // Unbuilt index.html, as when serving this folder directly.
+      setStatus('loading', 'Loading the archive…');
+    }
+    archive = loadArchive();
+    if (wantKey) {
+      const day = want[3] && want[0];
+      if (months.length) goTo(wantKey, day);
+      else archive.then(() => goTo(wantKey, day));
+    }
   }
   start();
 })();

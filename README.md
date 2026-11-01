@@ -2,7 +2,10 @@
 
 A photo-grid view of NASA's [Astronomy Picture of the Day](https://science.nasa.gov/apod/) archive. Each thumbnail links to that day's page on science.nasa.gov, and the search box finds days by title, photographer credit or explanation text.
 
-- `index.html`: the grid and search box. It reads `apod.json` and needs no build step.
+- `index.html`: the grid, search box and timeline (a minimap of the whole archive down the right edge, for sliding to any month). It reads `apod.json` and needs no build step.
+- `about.md`: the About page, in Markdown: how to use the site, how it's built, the data's known gaps, and credits.
+- `build-about.mjs`: builds the deployed `about.html` from `about.md` with [marked](https://marked.js.org/), inside `about.template.html` (the page's styles, toolbar and footer).
+- `build-page.mjs`: builds the deployed `index.html` with the newest three months of `apod.json` inside it, so the grid appears at once while the full archive loads in the background.
 - `fetch-apod.mjs`: builds `apod.json` and `apod-details/` from science.nasa.gov. Requires Node 18 or newer and has no dependencies.
 - `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `pagefind/`.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
@@ -18,6 +21,15 @@ python3 -m http.server   # then open http://localhost:8000
 ```
 
 Browsers won't load `apod.json` from a `file://` page, so serve the folder over HTTP.
+
+To see the site as deployed, with the newest months built in and the About page, build it and serve `_site/`:
+
+```sh
+npm run build
+python3 -m http.server -d _site
+```
+
+The address keeps the month you're looking at, as `?date=2014-08`, so a reload or a shared link opens there. A link can also name a year (`?date=2014`, opening at its December) or a day (`?date=2014-08-24`, which outlines that day's picture).
 
 ## The data
 
@@ -84,7 +96,7 @@ If it stops, rerun the loop starting from the year it stopped at.
 
 The workflow deploys the site with GitHub Actions, so the search index is built fresh and never committed. In the repository's Settings → Pages, set **Source** to **GitHub Actions**.
 
-`npm run build` builds the search index and assembles the deployed files in `_site/`. Both the workflow and Netlify use it.
+`npm run build` builds the search index and assembles the deployed files in `_site/`, including the `index.html` from `build-page.mjs` and the `about.html` from `build-about.mjs`. Both the workflow and Netlify use it.
 
 ### Previews
 
