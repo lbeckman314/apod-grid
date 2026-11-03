@@ -196,6 +196,7 @@ main, .status, footer { margin-right: var(--rail-w); }
   </div>
 </nav>
 
+<div id="page">
 <main id="main"></main>
 <div id="status" class="status" hidden></div>
 <div id="sentinel"></div>
@@ -204,6 +205,7 @@ main, .status, footer { margin-right: var(--rail-w); }
   Some images are copyrighted by their photographers. Each tile opens that day's page on science.nasa.gov.
   <a href="about.html">About this site</a> · <a href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
+</div>
 
 <!-- The newest months of apod.json (see the top of this file), so they show without waiting for it. -->
 <script type="application/json" id="seed" is:inline set:html={seedJson}></script>
@@ -215,10 +217,32 @@ main, .status, footer { margin-right: var(--rail-w); }
 
   const $ = (id) => document.getElementById(id);
   const main = $('main'), statusEl = $('status'), sentinel = $('sentinel');
+
+  // Scroll the page to `top`. While the timeline is being dragged, the page is shifted there
+  // instead and scrolled when the pointer is up: iOS reports a pointer's position off by any
+  // scrolling that happens while it's down.
+  const page = $('page');
+  let shift = 0; // px the page is shown past scrollY
+  const pageTop = () => scrollY + shift;
+  const maxTop = () => page.offsetTop + page.offsetHeight - innerHeight; // a shift doesn't change it
+  function scrollPage(top) {
+    top = Math.max(0, Math.min(top, maxTop()));
+    if (!drag) { window.scrollTo({ top }); return; }
+    shift = top - scrollY;
+    page.style.transform = shift ? `translateY(${-shift}px)` : '';
+  }
+  function release() {
+    if (!shift) return;
+    const top = pageTop();
+    shift = 0;
+    page.style.transform = '';
+    window.scrollTo({ top });
+  }
   const shortDate = (iso) => `${MONTHS[+iso.slice(5, 7) - 1].slice(0, 3)} ${+iso.slice(8, 10)}, ${iso.slice(0, 4)}`;
 
   let all = [];          // every entry, newest first
   let months = [];       // [{ key: 'YYYY-MM', items }], newest first
+  let first = 0;         // index into months of the newest one rendered
   let next = 0;          // index into months of the next one to render
   let searching = false; // while showing search results, scrolling doesn't add months
   let complete = false;  // false while only the newest months built into the page are loaded
@@ -279,7 +303,7 @@ main, .status, footer { margin-right: var(--rail-w); }
     return a;
   }
 
-  function renderMonth({ key, items }) {
+  function renderMonth({ key, items }, above) {
     const [y, m] = key.split('-').map(Number);
     const sec = document.createElement('section'); sec.className = 'month';
     sec.id = `m-${key}`;
@@ -290,7 +314,7 @@ main, .status, footer { margin-right: var(--rail-w); }
     const grid = document.createElement('div'); grid.className = 'grid';
     grid.append(...items.map(tile));
     sec.append(h, grid);
-    main.append(sec);
+    if (above) main.prepend(sec); else main.append(sec);
   }
 
   const sentinelVisible = () => sentinel.getBoundingClientRect().top < window.innerHeight + 1200;
@@ -307,17 +331,31 @@ main, .status, footer { margin-right: var(--rail-w); }
     else if (next < months.length && sentinelVisible()) requestAnimationFrame(fill);
   }
 
+  // Render newer months above the grid until there's a screen or so of them above the top,
+  // so after a jump you can scroll back up. What's on screen stays in place.
+  function fillAbove() {
+    if (searching) return;
+    let budget = 6;
+    while (first > 0 && budget-- > 0 && main.firstElementChild.getBoundingClientRect().top > -1200) prepend(first - 1);
+  }
+  function prepend(to) {
+    const ref = main.firstElementChild, was = ref.getBoundingClientRect().top;
+    while (first > to) renderMonth(months[--first], true);
+    scrollPage(pageTop() + ref.getBoundingClientRect().top - was); // no change where the browser anchors scrolling itself
+  }
+
   new IntersectionObserver((entries) => {
     if (entries.some((e) => e.isIntersecting)) fill();
   }, { rootMargin: '1200px 0px' }).observe(sentinel);
 
   function showFrom(index) {
     searching = false;
-    next = index;
+    first = next = index;
     main.replaceChildren();
     setStatus(null);
-    window.scrollTo({ top: 0 });
+    scrollPage(0);
     fill();
+    fillAbove();
     showCurrent();
   }
 
@@ -367,7 +405,7 @@ main, .status, footer { margin-right: var(--rail-w); }
   let current = null;  // the month at the top of the screen
   let pos = 0;         // the fractional index into calendar at the line: 3.5 is halfway through month 3
   let target = 0;      // where pos is easing to
-  let drag = null;     // { y, year } while the pointer is down
+  let drag = null;     // { y, year, top, height } while the pointer is down
   let hovering = false;
   let frame = 0, lastT = 0;
 
@@ -482,7 +520,7 @@ main, .status, footer { margin-right: var(--rail-w); }
     setAria(i);
     if (!hovering) bubble.hidden = true;
     kick();
-    goTo(calendar[i]);
+    showAt(i);
   }
 
 
@@ -497,12 +535,12 @@ main, .status, footer { margin-right: var(--rail-w); }
     track.classList.toggle('idle', searching);
     if (searching) { current = null; return; }
     const top = header.getBoundingClientRect().bottom;
-    const sec = [...main.querySelectorAll('section.month')].find((s) => s.getBoundingClientRect().bottom > top);
+    const sec = [...main.querySelectorAll('section.month')].find((s) => s.getBoundingClientRect().bottom > top + 48); // past the gap above the next heading
     if (!sec) return;
     current = sec.id.slice(2);
     setAddress(current);
     const i = calendar.indexOf(current);
-    if (i < 0 || drag) return;
+    if (i < 0 || drag || glideTo) return; // the line is already headed there
     const r = sec.getBoundingClientRect();
     const p = i + Math.max(0, Math.min(0.99, (top - r.top) / r.height));
     setAria(i);
@@ -525,19 +563,18 @@ main, .status, footer { margin-right: var(--rail-w); }
   addEventListener('scroll', () => {
     if (scrollQueued) return;
     scrollQueued = true;
-    requestAnimationFrame(() => { scrollQueued = false; showCurrent(); });
+    requestAnimationFrame(() => { scrollQueued = false; fillAbove(); showCurrent(); });
   }, { passive: true });
 
-  // While the pointer is down, the line follows it and the grid follows the line: a month that's
-  // already drawn scrolls into place, partway through it as the line is partway through its span;
-  // one that isn't is drawn first. At most once a frame.
+  // While the pointer is down, the line follows it and the grid follows the line, to the start
+  // of the month under it. At most once a frame. The page is shifted rather than scrolled
+  // until the pointer is up (see scrollPage).
   let scrubFrame = 0, scrubTo = 0;
   function scrub(clientY) {
-    const r = track.getBoundingClientRect();
-    pos = target = Math.max(0, Math.min(calendar.length - 0.01, (clientY - r.top - PAD) / perMonth(r.height)));
+    pos = target = Math.max(0, Math.min(calendar.length - 0.01, (clientY - drag.top - PAD) / perMonth(drag.height)));
     showBubble(monthAt(pos));
     draw();
-    scrubTo = pos;
+    scrubTo = monthAt(pos);
     if (!scrubFrame) scrubFrame = requestAnimationFrame(flushScrub);
   }
   function flushScrub() {
@@ -546,24 +583,46 @@ main, .status, footer { margin-right: var(--rail-w); }
     scrubFrame = 0;
     showAt(scrubTo);
   }
-  function showAt(p) {
-    const i = monthAt(p), key = calendar[i];
-    let sec = searching ? null : document.getElementById(`m-${key}`);
-    if (!sec) {
-      goTo(key); // draws the month now when it's loaded, or later once apod.json is
-      sec = document.getElementById(`m-${key}`);
-    } else goRun++; // drop any jump still waiting for apod.json
-    if (!sec) return;
-    const r = sec.getBoundingClientRect();
-    window.scrollTo({ top: scrollY + r.top - header.getBoundingClientRect().bottom + (p - i) * r.height });
+
+  // Show month `i`: glide to it when it's drawn or within a year of the drawn months (drawing
+  // the months between), else draw the grid from it.
+  let glideTo = null, glideFrame = 0;
+  function showAt(i) {
+    const sec = searching ? null : nearby(calendar[i]);
+    if (!sec) { glideTo = null; goTo(calendar[i]); return; }
+    goRun++; // drop any jump still waiting for apod.json
+    glideTo = sec;
+    if (!glideFrame) glideFrame = requestAnimationFrame(glide);
   }
+  function nearby(key) {
+    const j = months.findIndex((mo) => mo.key <= key);
+    if (j < 0 || j < first - 12 || j > next + 12) return null;
+    if (j < first) prepend(j);
+    while (next <= j) renderMonth(months[next++]);
+    return document.getElementById(`m-${months[j].key}`);
+  }
+  // Ease the page toward glideTo's heading, re-measuring each frame as months are added.
+  function glide() {
+    glideFrame = 0;
+    if (!glideTo) return;
+    const want = Math.min(maxTop(), pageTop() + glideTo.getBoundingClientRect().top - header.getBoundingClientRect().bottom);
+    const d = want - pageTop();
+    if (still || Math.abs(d) < 1) { scrollPage(want); glideTo = null; return; }
+    scrollPage(pageTop() + d * 0.3);
+    glideFrame = requestAnimationFrame(glide);
+  }
+  // Scrolling the page yourself stops a glide.
+  for (const type of ['wheel', 'touchstart']) {
+    addEventListener(type, (e) => { if (!track.contains(e.target)) glideTo = null; }, { passive: true });
+  }
+
   track.addEventListener('pointerdown', (e) => {
     if (!calendar.length || e.button > 0) return;
     e.preventDefault();
     track.setPointerCapture(e.pointerId);
     const r = track.getBoundingClientRect(), y = e.clientY - r.top;
     const label = e.clientX - r.left < r.width - 26 && labels.find((l) => Math.abs(l.y - y) < 7);
-    drag = { y: e.clientY, year: label ? label.year : null };
+    drag = { y: e.clientY, year: label ? label.year : null, top: r.top, height: r.height };
     scrub(e.clientY);
   });
   track.addEventListener('pointermove', (e) => {
@@ -576,6 +635,7 @@ main, .status, footer { margin-right: var(--rail-w); }
     // The grid is already there; a click on a year label goes to the start of that year (its newest month).
     const year = Math.abs(e.clientY - drag.y) < 4 && drag.year;
     drag = null;
+    release();
     if (year) {
       cancelAnimationFrame(scrubFrame);
       scrubFrame = 0;
@@ -586,7 +646,7 @@ main, .status, footer { margin-right: var(--rail-w); }
       if (!hovering) bubble.hidden = true;
     }
   });
-  track.addEventListener('pointercancel', () => { drag = null; bubble.hidden = true; showCurrent(); });
+  track.addEventListener('pointercancel', () => { drag = null; release(); bubble.hidden = true; showCurrent(); });
   track.addEventListener('pointerenter', () => { hovering = true; });
   track.addEventListener('pointerleave', () => { hovering = false; if (!drag) bubble.hidden = true; });
 
@@ -709,10 +769,14 @@ main, .status, footer { margin-right: var(--rail-w); }
     }
 
     // Carry on after the last month shown, which may have moved if apod.json is newer than the page.
-    const last = next > 0 ? months[next - 1].key : null;
+    const top = next > 0 ? months[first].key : null, last = next > 0 ? months[next - 1].key : null;
     setData(data);
     if (!months.length) { setStatus('error', 'apod.json has no entries yet. Run "node fetch-apod.mjs --last 10" to add some.'); return; }
-    if (last) { const i = months.findIndex((mo) => mo.key < last); next = i < 0 ? months.length : i; }
+    if (last) {
+      const i = months.findIndex((mo) => mo.key < last);
+      next = i < 0 ? months.length : i;
+      first = Math.max(0, months.findIndex((mo) => mo.key <= top));
+    }
     complete = true;
 
     showSummary(all.length, all[all.length - 1].date, all[0].date);
