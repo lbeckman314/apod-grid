@@ -4,6 +4,9 @@
 // The page's <style> and <script> are is:inline, so Astro leaves them as written: the script
 // builds its own elements and loads pagefind/ at run time, which scoping or bundling would break.
 import { readFile } from 'node:fs/promises';
+import InfoIcon from '@tabler/icons/outline/info-circle.svg';
+import GitHubIcon from '@tabler/icons/outline/brand-github.svg';
+import TimelineIcon from '@tabler/icons/outline/layout-sidebar-right.svg';
 
 const MONTHS = 3;
 const entries = JSON.parse(await readFile('apod.json', 'utf8'))
@@ -79,9 +82,12 @@ header.bar {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; cursor: pointer; text-decoration: none; font-size: 14px; white-space: nowrap;
 }
-/* Icons are GitHub's Octicons (MIT), inline so they take the text colour. */
-.btn .icon { width: 16px; height: 16px; flex: none; fill: currentColor; }
+/* Icons are Tabler's (MIT), imported as components in the frontmatter. They're drawn with
+   strokes in the text colour. */
+.btn .icon { width: 16px; height: 16px; flex: none; }
 .btn:hover { border-color: var(--dust); }
+.btn.icon-only { padding-inline: 8px; }
+.btn[aria-pressed="true"] { color: var(--glow); }
 .btn.accent { background: var(--glow); border-color: var(--glow); color: #1a1205; font-weight: 600; }
 
 main { padding-block: 8px 48px; }
@@ -147,7 +153,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
 @media (max-width: 560px) {
   .grid { grid-template-columns: repeat(3, 1fr); gap: 0px; }
   .cap .t { -webkit-line-clamp: 2; font-size: 12px; }
-  /* Search shrinks so About and GitHub stay on its row. */
+  /* Search shrinks so the buttons stay on its row. */
   .controls { width: 100%; flex-wrap: nowrap; }
   .controls input[type="search"] { flex: 1; width: auto; min-width: 0; }
 }
@@ -162,7 +168,8 @@ main, .status, footer { margin-right: var(--rail-w); }
   right: max(8px, env(safe-area-inset-right, 0px)); width: var(--rail-w);
   display: flex; flex-direction: column;
 }
-.rail[hidden] { display: none; }
+.rail[hidden], .no-rail .rail { display: none; }
+.no-rail { --rail-w: 0px; }
 .rail-track {
   position: relative; flex: 1; min-height: 0; cursor: pointer; border-radius: 6px;
   touch-action: none; user-select: none; -webkit-user-select: none;
@@ -184,8 +191,9 @@ main, .status, footer { margin-right: var(--rail-w); }
   </div>
   <div class="controls">
     <input type="search" id="q" placeholder="Search titles, credits, text" aria-label="Search" autocomplete="off" spellcheck="false">
-    <a class="btn" href="about.html"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>About</a>
-    <a class="btn" href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
+    <a class="btn" href="about.html"><InfoIcon class="icon" aria-hidden="true" />About</a>
+    <a class="btn" href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener"><GitHubIcon class="icon" aria-hidden="true" />GitHub</a>
+    <button class="btn icon-only" id="railToggle" type="button" aria-pressed="true" aria-label="Timeline" title="Show or hide the timeline"><TimelineIcon class="icon" aria-hidden="true" /></button>
   </div>
 </header>
 
@@ -389,6 +397,16 @@ main, .status, footer { margin-right: var(--rail-w); }
   // to that month, or click a year to go to the start of that year.
   const rail = $('rail'), track = $('railTrack'), dial = $('railDial');
   const bubble = $('railBubble');
+
+  // The toolbar's timeline button shows or hides it. This browser remembers which.
+  const railToggle = $('railToggle');
+  function showRail(on) {
+    document.documentElement.classList.toggle('no-rail', !on);
+    railToggle.setAttribute('aria-pressed', on);
+    try { localStorage.setItem('apod-rail', on ? 'on' : 'off'); } catch {}
+  }
+  railToggle.addEventListener('click', () => showRail(document.documentElement.classList.contains('no-rail')));
+  try { if (localStorage.getItem('apod-rail') === 'off') showRail(false); } catch {}
   const header = document.querySelector('header.bar');
   const ctx = dial.getContext('2d');
   const rgb = (name) => { const h = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)); };

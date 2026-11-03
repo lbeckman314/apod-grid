@@ -11,6 +11,8 @@ The site is a small [Astro](https://astro.build/) project that builds to static 
 - `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `dist/pagefind/`, after Astro builds the site.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
 
+The toolbar icons are from [Tabler Icons](https://tabler.io/icons) (`@tabler/icons`). The pages import them as Astro components, which builds them into the HTML as inline SVG.
+
 The data covers the whole archive: 11,445 days from June 16, 1995 on. NASA's site has 11,446 APOD posts; see [Known gaps](#known-gaps).
 
 ## Run it locally
