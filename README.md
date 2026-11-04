@@ -2,30 +2,33 @@
 
 A photo-grid view of NASA's [Astronomy Picture of the Day](https://science.nasa.gov/apod/) archive. Each thumbnail links to that day's page on science.nasa.gov, and the search box finds days by title, photographer credit or explanation text.
 
-- `index.html`: the grid, search box and timeline (a minimap of the whole archive down the right edge, for sliding to any month). It reads `apod.json` and needs no build step.
-- `about.html`: the About page: how to use the site, how it's built, the data's known gaps, and credits.
-- `build-page.mjs`: builds the deployed `index.html` with the newest three months of `apod.json` inside it, so the grid appears at once while the full archive loads in the background.
+The site is a small [Astro](https://astro.build/) project that builds to static files:
+
+- `src/pages/index.astro`: the grid, search box and timeline (a minimap of the whole archive down the right edge, for sliding to any month). Its build step puts the newest three months of `apod.json` into the page, so the grid appears at once while the full archive loads in the background.
+- `src/pages/about.md`: the About page, in Markdown: how to use the site, how it's built, the data's known gaps, and credits. It's laid out by `src/layouts/About.astro` (the page's styles, toolbar and footer).
+- `src/pages/apod.json.js`: serves `apod.json` from the repository root at `/apod.json`.
 - `fetch-apod.mjs`: builds `apod.json` and `apod-details/` from science.nasa.gov. Requires Node 18 or newer and has no dependencies.
-- `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `pagefind/`.
+- `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `dist/pagefind/`, after Astro builds the site.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
+
+The toolbar icons are from [Tabler Icons](https://tabler.io/icons) (`@tabler/icons`). The pages import them as Astro components, which builds them into the HTML as inline SVG.
 
 The data covers the whole archive: 11,445 days from June 16, 1995 on. NASA's site has 11,446 APOD posts; see [Known gaps](#known-gaps).
 
 ## Run it locally
 
+Astro needs Node 22.22 or newer.
+
 ```sh
 npm install
-npm run build-search     # optional: without it, search covers titles and credits only
-python3 -m http.server   # then open http://localhost:8000
+npm run dev       # then open http://localhost:4321
 ```
 
-Browsers won't load `apod.json` from a `file://` page, so serve the folder over HTTP.
-
-To see the site as deployed, with the newest months built in and full search, build it and serve `_site/`:
+The development server reloads as you edit. It has no search index, so search covers titles and credits only. To try the site as deployed, with full search:
 
 ```sh
-npm run build
-python3 -m http.server -d _site
+npm run build     # the site and its search index, in dist/
+npm run preview
 ```
 
 The address keeps the month you're looking at, as `?date=2014-08`, so a reload or a shared link opens there. A link can also name a year (`?date=2014`, opening at its December) or a day (`?date=2014-08-24`, which outlines that day's picture).
@@ -95,7 +98,7 @@ If it stops, rerun the loop starting from the year it stopped at.
 
 The workflow deploys the site with GitHub Actions, so the search index is built fresh and never committed. In the repository's Settings → Pages, set **Source** to **GitHub Actions**.
 
-`npm run build` builds the search index and assembles the deployed files in `_site/`, including the `index.html` from `build-page.mjs`. Both the workflow and Netlify use it.
+`npm run build` builds the site with Astro, then its search index, into `dist/`. Both the workflow and Netlify use it.
 
 ### Previews
 

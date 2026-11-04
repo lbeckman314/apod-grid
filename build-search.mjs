@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Build the Pagefind search index (pagefind/) from apod.json and apod-details/*.json.
+// Build the Pagefind search index (dist/pagefind/) from apod.json and apod-details/*.json.
+// It indexes the data rather than the built pages, since the grid has no page per day.
 //
-//   npm install
-//   npm run build-search
+//   npm run build   (runs this after astro build)
 //
 // Each day becomes one search record holding its title, credit and explanation. Titles
 // are weighted highest, then credits, so a match there ranks above one in an explanation.
@@ -10,7 +10,7 @@
 import { readFile, readdir, rm } from 'node:fs/promises';
 import * as pagefind from 'pagefind';
 
-const OUT = 'pagefind';
+const OUT = 'dist/pagefind';
 
 const entries = JSON.parse(await readFile('apod.json', 'utf8'));
 const details = {};
