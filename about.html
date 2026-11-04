@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About APOD Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* The same night-sky palette and toolbar as the grid (index.html), with one column of reading text. */
+:root {
+  --sky: #07090f;        /* page background: night sky */
+  --panel: #10141f;      /* toolbar and code background */
+  --line: #1f2636;       /* hairlines and borders */
+  --star: #e8ecf5;       /* primary text */
+  --dust: #8a93a8;       /* secondary text */
+  --glow: #f2b84b;       /* accent: warm starlight */
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--sky);
+  color: var(--star);
+  font: 16px/1.65 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: inherit; text-decoration-color: color-mix(in srgb, var(--glow) 60%, transparent); text-underline-offset: 3px; }
+a:hover { color: var(--glow); }
+:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+
+header.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+  padding-block: 14px;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: color-mix(in srgb, var(--sky) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; text-decoration: none; }
+.brand h1 { margin: 0; font: 800 20px/1 var(--font-display); letter-spacing: -0.01em; }
+.brand h1 span { color: var(--glow); }
+.brand small { font: 400 12px var(--font-mono); color: var(--dust); }
+.links { display: flex; gap: 8px; }
+.btn {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; text-decoration: none; font-size: 14px; white-space: nowrap;
+}
+/* Icons are GitHub's Octicons (MIT), inline so they take the text colour. */
+.btn .icon { width: 16px; height: 16px; flex: none; fill: currentColor; }
+.btn:hover { border-color: var(--dust); color: var(--star); }
+
+main { max-width: 68ch; padding-block: 32px 48px; }
+h2 { margin: 48px 0 8px; font: 600 22px/1.25 var(--font-display); }
+h2:first-child { margin-top: 0; }
+h3 { margin: 28px 0 4px; font: 600 17px/1.3 var(--font-display); }
+h3 .n { font: 500 12px var(--font-mono); color: var(--glow); margin-right: 8px; letter-spacing: 0.04em; }
+p, ul, ol { margin: 0 0 14px; }
+ul, ol { padding-left: 22px; }
+li { margin-bottom: 6px; }
+.lede { font-size: 18px; color: var(--star); }
+.muted { color: var(--dust); }
+code {
+  font: 400 13.5px var(--font-mono); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere;
+}
+pre {
+  font: 400 13.5px/1.6 var(--font-mono); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 0 0 14px;
+}
+pre code { background: none; border: 0; padding: 0; }
+dl { margin: 0 0 14px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+dt { font: 500 13.5px/1.65 var(--font-mono); color: var(--glow); }
+dd { margin: 0; }
+@media (max-width: 560px) { dl { grid-template-columns: 1fr; gap: 0; } dd { margin-bottom: 10px; } }
+footer { color: var(--dust); font-size: 13px; padding-block: 0 32px; max-width: 68ch; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="./">
+    <h1>APOD <span>Grid</span></h1>
+    <small>About</small>
+  </a>
+  <nav class="links" aria-label="Site">
+    <a class="btn" href="./">Back to the grid</a>
+    <a class="btn" href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h2>What this is</h2>
+  <p class="lede">APOD Grid shows NASA's <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">Astronomy Picture of the Day</a> archive as one long wall of photos: every day since June 16, 1995, newest first, a month at a time.</p>
+  <p>Each picture links to that day's page on science.nasa.gov, where you'll find the full image and its explanation. This site is a fan project for browsing; it isn't affiliated with or endorsed by NASA.</p>
+
+  <h2>Using it</h2>
+  <dl>
+    <dt>Scroll</dt>
+    <dd>Older months load as you reach them. Hover over a picture for its date, title and credit.</dd>
+    <dt>Timeline</dt>
+    <dd>The column on the right covers the whole archive, newest at the top. The yellow line marks where you are. Click or drag anywhere on it to go to that month, or click a year to go to the start of that year. With the timeline focused, the arrow keys move a month, Page Up and Page Down move a year, and Home and End go to either end.</dd>
+    <dt>Search</dt>
+    <dd>Finds days by title, photographer credit or explanation text. Matches in titles rank first, then credits.</dd>
+    <dt>Links</dt>
+    <dd>The address keeps the month you're looking at, so you can bookmark or share it. <code>?date=2014-08</code> opens a month, <code>?date=2014</code> opens the end of a year, and <code>?date=2014-08-24</code> opens a month and outlines that day's picture.</dd>
+  </dl>
+
+  <h2>How we built it</h2>
+  <p>The whole site is one HTML page, a few small scripts, and data files kept in the repository. There's no server or database.</p>
+
+  <h3><span class="n">01</span>Fetching the archive</h3>
+  <p>APOD moved to science.nasa.gov, which runs on WordPress. <code>fetch-apod.mjs</code> reads its public JSON API (no key needed), asking only for posts in the APOD category, 100 at a time, with a one-second pause between requests to go easy on NASA's site. For each day it keeps the title, link, image, a roughly 480-pixel thumbnail, the photographer credit, whether the image is copyrighted, and NASA's alt text where there is one. It also notes days whose article embeds a video, audio or interactive page.</p>
+  <p>We backfilled the full archive one year at a time, a few requests per year. Days are dated by their publish date, because a few page addresses carry the wrong day.</p>
+
+  <h3><span class="n">02</span>Keeping the data small</h3>
+  <p>The grid only needs a little about each day, so <code>apod.json</code> holds just that. Everything else (the explanation as text and HTML, credit links, editors, full-resolution links, and every image's size) goes in <code>apod-details/</code>, one file per year. The grid never loads those files, and a daily update only rewrites the current year.</p>
+
+  <h3><span class="n">03</span>Staying up to date</h3>
+  <p>A GitHub Actions workflow runs every day at 06:17 UTC, a couple of hours after the new picture posts. It adds new days, refreshes any day NASA has edited, commits the changes, and redeploys the site to GitHub Pages. Netlify builds a preview of each pull request.</p>
+
+  <h3><span class="n">04</span>Search</h3>
+  <p>When the site deploys, <code>build-search.mjs</code> builds a <a href="https://pagefind.app/" target="_blank" rel="noopener">Pagefind</a> index from every day's title, credit, explanation and alt text. The browser downloads only the small slices of the index a search needs. Without the index, as when running the site straight from the folder, search falls back to titles and credits.</p>
+
+  <h3><span class="n">05</span>Loading instantly</h3>
+  <p>The full <code>apod.json</code> is several megabytes. So that the grid never waits for it, <code>build-page.mjs</code> puts the newest three months straight into the deployed page. Those show right away while the rest of the archive loads in the background.</p>
+
+  <h3><span class="n">06</span>Browsing</h3>
+  <p>The grid draws a few months at a time and adds more as you scroll, so the page stays light however far back you go. The timeline is drawn on a canvas with one hash per month (fewer when space is tight), styled after the straightening dial in the iOS photo editor. It follows the page as you scroll and moves the page as you drag.</p>
+
+  <h2>The data</h2>
+  <p>The archive covers more than 11,400 days. Some gaps come from NASA's migration to science.nasa.gov rather than from this site:</p>
+  <ul>
+    <li>A few days have no post: 1995-06-17 to 06-19 (APOD didn't post), 2000-06-30, 2004-12-29, 2007-07-13, 2018-04-01 and 2020-06-10.</li>
+    <li>2007-07-16 has two posts; one is probably 2007-07-13, but NASA's pages don't say which.</li>
+    <li>About 16 posts are empty, so those days have a title and link but no picture.</li>
+    <li>About 130 days have no image to show, mostly Vimeo videos, which offer no free thumbnail.</li>
+  </ul>
+  <p>Both files are in the repository, and the <a href="https://github.com/lbeckman314/apod-grid#the-data" target="_blank" rel="noopener">README</a> lists every field.</p>
+
+  <h2>Credits and copyright</h2>
+  <p>The pictures and text come from NASA's Astronomy Picture of the Day, written and edited by Robert Nemiroff and Jerry Bonnell. Many images are copyrighted by their photographers and aren't public domain; each tile's credit names them. This site doesn't host any images. Every thumbnail loads from NASA's own copy.</p>
+
+  <h2>Run it yourself</h2>
+  <p>The code is on <a href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener">GitHub</a>. You need Node 18 or newer.</p>
+<pre><code>npm install
+npm run build                   # search index and the deployed site, in _site/
+python3 -m http.server -d _site  # then open http://localhost:8000</code></pre>
+  <p class="muted">Serving the folder without building works too. The page then waits for the full archive before showing anything, and search covers titles and credits only.</p>
+</main>
+
+<footer>
+  Pictures and text from NASA's <a href="https://science.nasa.gov/apod/" target="_blank" rel="noopener">Astronomy Picture of the Day</a>. Source on <a href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener">GitHub</a>.
+</footer>
+</body>
+</html>
