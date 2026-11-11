@@ -45,6 +45,10 @@ The full `apod.json` is several megabytes. So that the grid never waits for it, 
 
 The grid draws a few months at a time and adds more as you scroll, so the page stays light however far back you go. The timeline is drawn on a canvas with one hash per month (fewer when space is tight), styled after the straightening dial in the iOS photo editor. It follows the page as you scroll and moves the page as you drag.
 
+### Keeping thumbnails
+
+Each thumbnail loads from NASA's servers. So that a return visit doesn't fetch them all again, a service worker (`public/sw.js`) keeps the thumbnails you've seen in your browser for 30 days, up to about 80 MB. It handles only NASA's images, and clearing the site's data in your browser removes them.
+
 ### Writing this page
 
 This page is written in Markdown, in `src/pages/about.md`. Astro turns it into HTML and places it in a layout, `src/layouts/About.astro`, which holds the page's styles, toolbar and footer.

@@ -25,6 +25,15 @@ const seedJson = seed ? JSON.stringify(seed).replace(/</g, '\\u003c') : '';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>APOD Grid</title>
+<meta name="description" content="NASA's Astronomy Picture of the Day, every day since 1995, on one page.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://liambeckman.com/apod-grid/">
+<meta property="og:title" content="APOD Grid">
+<meta property="og:description" content="NASA's Astronomy Picture of the Day, every day since 1995, on one page.">
+<meta property="og:image" content="https://liambeckman.com/apod-grid/og.jpg">
+<meta property="og:image:width" content="960">
+<meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -825,6 +834,12 @@ main, .status, footer { margin-right: var(--rail-w); }
     }
   }
   start();
+
+  // sw.js keeps NASA's thumbnails on this device, so later visits don't fetch them again.
+  // Browsers allow service workers only over HTTPS and on localhost.
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 })();
 </script>
 </body>
