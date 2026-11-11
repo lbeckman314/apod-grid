@@ -7,6 +7,7 @@ The site is a small [Astro](https://astro.build/) project that builds to static 
 - `src/pages/index.astro`: the grid, search box and timeline (a minimap of the whole archive down the right edge, for sliding to any month). Its build step puts the newest three months of `apod.json` into the page, so the grid appears at once while the full archive loads in the background.
 - `src/pages/about.md`: the About page, in Markdown: how to use the site, how it's built, the data's known gaps, and credits. It's laid out by `src/layouts/About.astro` (the page's styles, toolbar and footer).
 - `src/pages/apod.json.js`: serves `apod.json` from the repository root at `/apod.json`.
+- `public/sw.js`: a service worker that keeps NASA's images in the visitor's browser for 30 days (up to 3,000 of them, about 80 MB), so returning visits don't fetch them from NASA again. The grid page registers it. To change how it caches, also change `CACHE` in the file (to `nasa-images-v2` and so on), so browsers discard the old cache.
 - `fetch-apod.mjs`: builds `apod.json` and `apod-details/` from science.nasa.gov. Requires Node 18 or newer and has no dependencies.
 - `build-search.mjs`: builds the [Pagefind](https://pagefind.app/) search index in `dist/pagefind/`, after Astro builds the site.
 - `.github/workflows/update.yml`: daily, adds new days and refreshes days NASA has edited, then builds the search index and deploys the site to GitHub Pages.
