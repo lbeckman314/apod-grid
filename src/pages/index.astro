@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import InfoIcon from '@tabler/icons/outline/info-circle.svg';
 import GitHubIcon from '@tabler/icons/outline/brand-github.svg';
 import TimelineIcon from '@tabler/icons/outline/layout-sidebar-right.svg';
+import SearchIcon from '@tabler/icons/outline/search.svg';
 
 const MONTHS = 3;
 const entries = JSON.parse(await readFile('apod.json', 'utf8'))
@@ -86,7 +87,14 @@ header.bar {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   padding: 6px 8px; font-family: var(--font-mono); font-size: 13px;
 }
-.controls input[type="search"] { width: 16em; max-width: 100%; font-family: var(--font-body); font-size: 14px; }
+.controls input[type="search"] { width: 16em; max-width: 100%; font-family: var(--font-body); font-size: 14px; padding-left: 30px; }
+/* The search box carries a magnifier at its left; clicking it focuses the box. */
+.search { position: relative; display: flex; min-width: 0; max-width: 100%; }
+.search .icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--dust); pointer-events: none;
+}
+.search:focus-within .icon { color: var(--star); }
 .btn {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   display: inline-flex; align-items: center; gap: 6px;
@@ -165,6 +173,7 @@ footer { color: var(--dust); font-size: 12px; padding-block: 0 32px; max-width: 
   .cap .t { -webkit-line-clamp: 2; font-size: 12px; }
   /* Search shrinks so the buttons stay on its row. */
   .controls { width: 100%; flex-wrap: nowrap; }
+  .search { flex: 1; }
   .controls input[type="search"] { flex: 1; width: auto; min-width: 0; }
 }
 
@@ -200,7 +209,7 @@ main, .status, footer { margin-right: var(--rail-w); }
     <small id="count">Astronomy Picture of the Day</small>
   </div>
   <div class="controls">
-    <input type="search" id="q" placeholder="Search titles, credits, text" aria-label="Search" autocomplete="off" spellcheck="false">
+    <label class="search"><SearchIcon class="icon" aria-hidden="true" /><input type="search" id="q" placeholder="Search" aria-label="Search" autocomplete="off" spellcheck="false"></label>
     <a class="btn" href="about.html"><InfoIcon class="icon" aria-hidden="true" />About</a>
     <a class="btn" href="https://github.com/lbeckman314/apod-grid" target="_blank" rel="noopener"><GitHubIcon class="icon" aria-hidden="true" />GitHub</a>
     <button class="btn icon-only" id="railToggle" type="button" aria-pressed="true" aria-label="Timeline" title="Show or hide the timeline"><TimelineIcon class="icon" aria-hidden="true" /></button>
