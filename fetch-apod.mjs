@@ -196,7 +196,12 @@ if (update && lastModified) {
 // --- 2. images and media type ---------------------------------------------------------
 // NASA's data has no media-type field, so it comes from what the article embeds.
 // Only embeds count, not ordinary links: articles link to plenty of unrelated pages.
-const isApodImage = (url) => /\/cds\/apod\//.test(url || '');
+// APOD images are usually under /cds/apod/, but some posts use a one-off image from elsewhere
+// on NASA's asset server (e.g. a Webb or Hubble release). Posts with no picture get a generic
+// news or NASA-logo thumbnail instead; that placeholder isn't the day's image.
+const GENERIC_THUMB = /\/(?:news-thumbnail|NASA-Meatball-Feature5)\./i;
+const isNasaAsset = (url) => /^https:\/\/assets\.science\.nasa\.gov\//i.test(url || '') && !GENERIC_THUMB.test(url);
+const isApodImage = (url) => /\/cds\/apod\//i.test(url || '') || isNasaAsset(url);
 // Block-level breaks become spaces; inline tags vanish, so "<a>Sun</a>," stays "Sun,".
 const toText = (html) => decode(html.replace(/<(?:br|\/p|\/div|\/li|\/td)\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, ''))
   .replace(/\s+/g, ' ').replace(/\s+([,.;:)])/g, '$1').replace(/\(\s+/g, '(').trim();
@@ -217,7 +222,8 @@ function creditIn(html) {
 // The main image's description, from the first APOD image in the article that has one.
 function altIn(html) {
   for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
-    if (!/\ssrc="[^"]*\/cds\/apod\//i.test(tag)) continue;
+    const src = /\ssrc="([^"]+)"/i.exec(tag)?.[1];
+    if (!src || !isApodImage(src)) continue;
     const alt = /\salt="([^"]*)"/i.exec(tag)?.[1];
     // Old posts all say "See Explanation. Clicking on the picture will download…".
     if (alt && alt.trim() && !/^\s*See Explanation\b/i.test(alt)) return toText(alt);
@@ -254,13 +260,13 @@ function imagesIn(html) {
   const images = [];
   for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
     const src = /\ssrc="([^"]+)"/i.exec(tag)?.[1];
-    if (!src || !/\/cds\/apod\//.test(src)) continue;
+    if (!src || !isApodImage(src)) continue;
     const url = bare(src);
     if (images.some((i) => i.url === url)) continue;
     const w = +(/\swidth="(\d+)"/i.exec(tag)?.[1] || 0), h = +(/\sheight="(\d+)"/i.exec(tag)?.[1] || 0);
     images.push({ url, ...(w && h ? { width: w, height: h } : {}) });
   }
-  const linked = /<a\b[^>]*\shref="([^"]+\/cds\/apod\/[^"]+)"[^>]*>\s*<img\b/i.exec(html)?.[1];
+  const linked = [...html.matchAll(/<a\b[^>]*\shref="([^"]+)"[^>]*>\s*<img\b/gi)].map((m) => m[1]).find(isApodImage);
   const largest = images.filter((i) => i.width).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   return { images, hdurl: linked ? bare(linked) : largest?.url };
 }
@@ -300,8 +306,8 @@ for (const p of posts) {
   const alt = altIn(html);
   if (alt) e.alt = alt;
 
-  // Older posts (1995-1998) have a generic NASA picture as their featured image;
-  // their real one is in the article text.
+  // Older posts (1995-1998) have a generic placeholder as their featured image;
+  // their real one is in the article text. isApodImage filters the placeholder out.
   const { images, hdurl } = imagesIn(html);
   let image = (p.featured_image_url || '').split('?')[0] || undefined;
   if (!isApodImage(image)) image = images[0]?.url;
